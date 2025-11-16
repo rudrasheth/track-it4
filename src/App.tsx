@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RootRedirect } from "@/components/RootRedirect";
 
 // Auth Pages
 import Login from "./pages/auth/Login";
@@ -145,7 +146,7 @@ const App = () => (
             />
 
             {/* Default Routes */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<RootRedirect />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
