@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { CreateGroupModal } from "@/components/CreateGroupModal";
 import {
   LayoutDashboard,
   Users,
@@ -11,10 +13,13 @@ import {
   FolderKanban,
   BarChart3,
   FileText,
+  Plus,
+  Send,
 } from "lucide-react";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
   const studentLinks = [
     { to: "/student/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -25,10 +30,10 @@ export function Sidebar() {
 
   const mentorLinks = [
     { to: "/mentor/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/mentor/groups", icon: Users, label: "Groups" },
-    { to: "/mentor/analytics", icon: BarChart3, label: "Analytics" },
-    { to: "/mentor/tasks", icon: ClipboardList, label: "Tasks" },
+    { to: "/mentor/groups", icon: Users, label: "My Groups" },
     { to: "/mentor/notices", icon: Bell, label: "Notices" },
+    { to: "/mentor/tasks/assign", icon: Send, label: "Assign Task" },
+    { to: "/mentor/analytics", icon: BarChart3, label: "Analytics" },
   ];
 
   const adminLinks = [
@@ -56,6 +61,18 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+          {user?.role === "mentor" && (
+            <button
+              onClick={() => setCreateGroupOpen(true)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Plus className="h-5 w-5" />
+              <span>Create Group</span>
+            </button>
+          )}
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -92,6 +109,10 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+
+      {user?.role === "mentor" && (
+        <CreateGroupModal open={createGroupOpen} onOpenChange={setCreateGroupOpen} />
+      )}
     </aside>
   );
 }

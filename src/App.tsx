@@ -16,6 +16,10 @@ import StudentDashboard from "./pages/student/StudentDashboard";
 
 // Mentor Pages
 import MentorDashboard from "./pages/mentor/MentorDashboard";
+import MyGroups from "./pages/mentor/MyGroups";
+import Notices from "./pages/mentor/Notices";
+import AssignTask from "./pages/mentor/AssignTask";
+import Analytics from "./pages/mentor/Analytics";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -55,6 +59,38 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["mentor"]}>
                   <MentorDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mentor/groups"
+              element={
+                <ProtectedRoute allowedRoles={["mentor"]}>
+                  <MyGroups />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mentor/notices"
+              element={
+                <ProtectedRoute allowedRoles={["mentor"]}>
+                  <Notices />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mentor/tasks/assign"
+              element={
+                <ProtectedRoute allowedRoles={["mentor"]}>
+                  <AssignTask />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mentor/analytics"
+              element={
+                <ProtectedRoute allowedRoles={["mentor"]}>
+                  <Analytics />
                 </ProtectedRoute>
               }
             />
