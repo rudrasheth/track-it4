@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { SubmissionsView } from "@/components/SubmissionsView";
 import { mockGroups, mockTasks, mockNotices, mockUsers } from "@/lib/mockData";
 import { Users, TrendingUp } from "lucide-react";
 
@@ -136,12 +137,17 @@ export default function GroupDetail() {
         <Tabs defaultValue="kanban" className="space-y-4">
           <TabsList>
             <TabsTrigger value="kanban">Kanban Board</TabsTrigger>
+            <TabsTrigger value="submissions">Submissions</TabsTrigger>
             <TabsTrigger value="notices">Notices</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
           </TabsList>
 
           <TabsContent value="kanban">
             <KanbanBoard groupId={group.id} />
+          </TabsContent>
+
+          <TabsContent value="submissions">
+            <SubmissionsView groupId={group.id} />
           </TabsContent>
 
           <TabsContent value="notices">

@@ -13,13 +13,15 @@ import { Task, mockTasks, mockUsers } from "@/lib/mockData";
 import { KanbanCard } from "./KanbanCard";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { toast } from "@/hooks/use-toast";
 
-type Column = "todo" | "in-progress" | "review" | "done";
+type Column = "todo" | "in-progress" | "review" | "submitted" | "done";
 
 const columns: { id: Column; title: string; color: string }[] = [
   { id: "todo", title: "To Do", color: "bg-muted" },
   { id: "in-progress", title: "In Progress", color: "bg-chart-3/20" },
   { id: "review", title: "Review", color: "bg-chart-1/20" },
+  { id: "submitted", title: "Submitted", color: "bg-chart-4/20" },
   { id: "done", title: "Done", color: "bg-chart-2/20" },
 ];
 
@@ -53,12 +55,39 @@ export function KanbanBoard({ groupId }: KanbanBoardProps) {
 
     const taskId = active.id as string;
     const newStatus = over.id as Column;
+    const task = tasks.find((t) => t.id === taskId);
+
+    // Don't allow dragging from done back to other columns
+    if (task?.status === "done" && newStatus !== "done") {
+      toast({
+        title: "Cannot Move Task",
+        description: "Completed tasks cannot be moved back",
+        variant: "destructive",
+      });
+      setActiveTask(null);
+      return;
+    }
 
     setTasks((tasks) =>
       tasks.map((task) =>
         task.id === taskId ? { ...task, status: newStatus } : task
       )
     );
+
+    if (task && task.status !== newStatus) {
+      const statusLabels: Record<Column, string> = {
+        "todo": "To Do",
+        "in-progress": "In Progress",
+        "review": "Review",
+        "submitted": "Submitted",
+        "done": "Done",
+      };
+
+      toast({
+        title: "Task Moved",
+        description: `Task "${task.title}" moved to ${statusLabels[newStatus]}`,
+      });
+    }
 
     setActiveTask(null);
   };

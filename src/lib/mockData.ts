@@ -13,7 +13,7 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  status: "todo" | "in-progress" | "review" | "done";
+  status: "todo" | "in-progress" | "review" | "submitted" | "done";
   assignees: string[];
   dueDate: string;
   semester: number;
@@ -25,10 +25,16 @@ export interface Submission {
   id: string;
   taskId: string;
   studentId: string;
+  groupId: string;
+  studentName?: string;
   fileUrl: string;
   submittedAt: string;
   grade?: number;
   feedback?: string;
+  rubric?: {
+    design?: string;
+    clarity?: string;
+  };
 }
 
 export interface Notice {
@@ -221,30 +227,44 @@ export const mockTasks: Task[] = [
 
 export const mockSubmissions: Submission[] = [
   {
-    id: "sub1",
+    id: "sub-1",
     taskId: "t1",
     studentId: "s1",
+    groupId: "g1",
+    studentName: "Rahul Kumar",
     fileUrl: "literature-review.pdf",
-    submittedAt: "2024-11-19T10:30:00",
-    grade: 92,
-    feedback: "Excellent work! Comprehensive analysis."
+    submittedAt: "2025-11-10T14:30:00Z",
+    grade: 88,
+    feedback: "Good work! Your research is thorough.",
+    rubric: {
+      design: "Good",
+      clarity: "Excellent",
+    },
   },
   {
-    id: "sub2",
+    id: "sub-2",
     taskId: "t4",
     studentId: "s1",
+    groupId: "g2",
+    studentName: "Rahul Kumar",
     fileUrl: "frontend-code.zip",
-    submittedAt: "2024-11-17T15:45:00"
+    submittedAt: "2025-11-15T16:20:00Z",
   },
   {
-    id: "sub3",
+    id: "sub-3",
     taskId: "t6",
     studentId: "s4",
+    groupId: "g3",
+    studentName: "Priya Sharma",
     fileUrl: "design-mockups.fig",
-    submittedAt: "2024-11-14T09:20:00",
-    grade: 88,
-    feedback: "Great design! Consider accessibility improvements."
-  }
+    submittedAt: "2025-11-12T10:00:00Z",
+    grade: 92,
+    feedback: "Excellent database schema design!",
+    rubric: {
+      design: "Excellent",
+      clarity: "Excellent",
+    },
+  },
 ];
 
 export const mockNotices: Notice[] = [
