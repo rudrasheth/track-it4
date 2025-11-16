@@ -3,21 +3,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { mockGroups } from "@/lib/mockData";
 
 interface JoinGroupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onJoinSuccess?: () => void;
 }
 
-export function JoinGroupModal({ open, onOpenChange, onJoinSuccess }: JoinGroupModalProps) {
+export function JoinGroupModal({ open, onOpenChange }: JoinGroupModalProps) {
   const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
 
-  const handleJoin = async () => {
+  const handleJoin = () => {
     if (code.length !== 6) {
       toast({
         title: "Invalid code",
@@ -27,70 +23,25 @@ export function JoinGroupModal({ open, onOpenChange, onJoinSuccess }: JoinGroupM
       return;
     }
 
-    if (!user) return;
-
-    setLoading(true);
-
-    try {
-      // Check if group exists
-      const { data: group, error: groupError } = await supabase
-        .from("groups")
-        .select("*")
-        .eq("code", code.toUpperCase())
-        .single();
-
-      if (groupError || !group) {
-        toast({
-          title: "Code not found",
-          description: "Please check the code and try again",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check if already in a group
-      const { data: existingMembership } = await supabase
-        .from("group_members")
-        .select("*")
-        .eq("student_id", user.id)
-        .single();
-
-      if (existingMembership) {
-        toast({
-          title: "Already in a group",
-          description: "Leave your current group first",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Join the group
-      const { error: joinError } = await supabase
-        .from("group_members")
-        .insert({
-          group_id: group.id,
-          student_id: user.id,
-        });
-
-      if (joinError) throw joinError;
-
+    // Mock validation
+    const group = mockGroups.find(g => g.id === "g1");
+    
+    if (!group) {
       toast({
-        title: `Joined ${group.name}!`,
-        description: `Group Code: ${code}`,
-      });
-
-      setCode("");
-      onOpenChange(false);
-      onJoinSuccess?.();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
+        title: "Code not found",
+        description: "Please check the code and try again",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    toast({
+      title: `Joined ${group.name}!`,
+      description: `Group Code: ${code}`,
+    });
+    
+    setCode("");
+    onOpenChange(false);
   };
 
   return (
@@ -107,8 +58,8 @@ export function JoinGroupModal({ open, onOpenChange, onJoinSuccess }: JoinGroupM
             maxLength={6}
             className="text-center text-2xl tracking-widest"
           />
-          <Button onClick={handleJoin} className="w-full" disabled={loading}>
-            {loading ? "Joining..." : "Join Group"}
+          <Button onClick={handleJoin} className="w-full">
+            Join Group
           </Button>
         </div>
       </DialogContent>

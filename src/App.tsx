@@ -5,11 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { RootRedirect } from "@/components/RootRedirect";
 
 // Auth Pages
 import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 
@@ -44,10 +42,9 @@ const App = () => (
         <AuthProvider>
           <Routes>
             {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Student Routes */}
             <Route
@@ -146,7 +143,7 @@ const App = () => (
             />
 
             {/* Default Routes */}
-            <Route path="/" element={<RootRedirect />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
