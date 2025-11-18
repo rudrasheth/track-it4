@@ -1,85 +1,180 @@
-import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { CreateGroupModal } from "@/components/CreateGroupModal";
-import { mockGroups } from "@/lib/mockData";
-import { Plus, Copy, Users } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, Users, Trash2, UserPlus, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { supabase } from "@/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { CreateGroupModal } from "@/components/CreateGroupModal"; // <--- IMPORT THE NEW COMPONENT
 
-const mockGroupCodes = ["P8K2M9", "L4N7Q3", "R9T5W1"];
+interface Group {
+  id: string;
+  name: string;
+  semester: string;
+  description: string;
+  members_count?: number;
+}
 
 export default function MyGroups() {
-  const [modalOpen, setModalOpen] = useState(false);
+  const { user } = useAuth();
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // This one state controls the shared modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    toast.success("Join code copied!");
+  // State for Add Member Dialog (Still local for now)
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [newMemberEmails, setNewMemberEmails] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [user]);
+
+  const fetchGroups = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('groups')
+        .select(`*, group_members (count)`)
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedGroups = data.map((g: any) => ({
+        ...g,
+        members_count: g.group_members?.[0]?.count || 0
+      }));
+
+      setGroups(formattedGroups);
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!selectedGroupId || !newMemberEmails) return;
+    setAddingMember(true);
+    try {
+      const emails = newMemberEmails.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      if (emails.length === 0) return;
+
+      const membersData = emails.map(email => ({
+        group_id: selectedGroupId,
+        student_email: email
+      }));
+
+      const { error } = await supabase.from('group_members').insert(membersData);
+      if (error) throw error;
+
+      toast.success("Students added successfully!");
+      setIsAddMemberOpen(false);
+      setNewMemberEmails("");
+      fetchGroups();
+    } catch (error) {
+      toast.error("Failed to add students");
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleDeleteGroup = async (id: string) => {
+    if (!confirm("Delete this group?")) return;
+    await supabase.from('groups').delete().eq('id', id);
+    fetchGroups();
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">My Groups</h1>
-            <p className="text-muted-foreground">Manage your project groups</p>
+            <p className="text-muted-foreground">Manage your student project groups</p>
           </div>
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Group
+          
+          {/* BUTTON OPENS THE SHARED COMPONENT */}
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Create Group
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {mockGroups.map((group, idx) => (
-            <Card key={group.id} className={group.isOverdue ? "border-destructive" : ""}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">{group.name}</CardTitle>
-                    <Badge variant="secondary">Semester {group.semester}</Badge>
+        {/* SHARED CREATE GROUP MODAL */}
+        <CreateGroupModal 
+          open={isCreateOpen} 
+          onOpenChange={setIsCreateOpen} 
+          // @ts-ignore
+          onSuccess={fetchGroups} // Refresh list when done
+        />
+
+        {/* GROUP LIST */}
+        {loading ? (
+          <div className="text-center p-10">Loading groups...</div>
+        ) : groups.length === 0 ? (
+          <div className="text-center p-10 border rounded-lg bg-muted/20">
+            <Users className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium">No groups created yet</h3>
+            <p className="text-muted-foreground">Click the button above to start your first group.</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {groups.map((group) => (
+              <Card key={group.id} className="relative group hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <CardTitle>{group.name}</CardTitle>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteGroup(group.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  {group.isOverdue && <Badge variant="destructive">Late</Badge>}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Users className="h-4 w-4" />
-                    {group.students.length}/5 Members
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => copyCode(mockGroupCodes[idx])}
-                    className="h-8 gap-2"
-                  >
-                    <span className="font-mono text-xs">{mockGroupCodes[idx]}</span>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-semibold">{group.progress}%</span>
+                  <Badge variant="secondary" className="w-fit">{group.semester}</Badge>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{group.description || "No description."}</p>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Users className="h-4 w-4" /> <span>{group.members_count} Students</span>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedGroupId(group.id); setIsAddMemberOpen(true); }}>
+                        <UserPlus className="h-4 w-4 mr-2" /> Add Member
+                    </Button>
                   </div>
-                  <Progress value={group.progress} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* ADD MEMBER DIALOG (Kept local as it depends on selected ID) */}
+        <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Add Students</DialogTitle><DialogDescription>Enter email addresses to add to this group.</DialogDescription></DialogHeader>
+                <div className="py-4">
+                    <Label>Student Emails (Comma separated)</Label>
+                    <Textarea placeholder="newstudent@mail.com" value={newMemberEmails} onChange={(e) => setNewMemberEmails(e.target.value)} />
                 </div>
-
-                <Button variant="outline" size="sm" className="w-full" asChild>
-                  <Link to={`/group/${group.id}`}>View Details</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <CreateGroupModal open={modalOpen} onOpenChange={setModalOpen} />
+                <DialogFooter>
+                    <Button onClick={handleAddMember} disabled={addingMember}>{addingMember ? <Loader2 className="animate-spin" /> : "Add Students"}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

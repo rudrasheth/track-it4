@@ -5,15 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { mockTasks, mockSubmissions, mockMessages, mockUsers, Task, studentProgress } from "@/lib/mockData";
-import { Calendar, Clock, FileText, MessageSquare, Send, Upload, AlertCircle } from "lucide-react";
+import { Calendar, Clock, FileText, Send, Upload, AlertCircle, Loader2, CheckCircle, Users } from "lucide-react";
 import { format, isPast } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { UploadAssignmentModal } from "@/components/UploadAssignmentModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner"; 
 import {
   Table,
   TableBody,
@@ -23,64 +21,182 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend } from "chart.js";
-import { Doughnut, Bar, PolarArea } from "react-chartjs-2";
+import { Doughnut, Bar } from "react-chartjs-2";
+import { supabase } from "@/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend);
 
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  status: string;
+  created_by: string; 
+}
+
+interface Submission {
+  id: string;
+  task_id: string;
+  student_id: string;
+  file_name: string;
+  file_url: string;
+  submitted_at: string;
+  grade?: number;
+}
+
+interface Message {
+  id: string;
+  content: string;
+  sender_id: string;
+  created_at: string;
+  profiles?: { full_name: string };
+}
+
+interface Group {
+  id: string;
+  name: string;
+  semester: string;
+  description: string;
+}
+
 export default function StudentDashboard() {
-  const [message, setMessage] = useState("");
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const { user } = useAuth();
+  const [messageInput, setMessageInput] = useState("");
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
 
-  const upcomingTasks = mockTasks
-    .filter((t) => t.status !== "done" && new Date(t.dueDate) > new Date())
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-    .slice(0, 3);
+  // --- REAL STATE ---
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [myGroup, setMyGroup] = useState<Group | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
+  const [mentorName, setMentorName] = useState("Mentor");
 
-  const pendingTasksCount = mockTasks.filter((t) => t.status === "todo").length;
-  const studentSubmissions = mockSubmissions.filter((s) => s.studentId === "s1");
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return;
 
-  const handleUploadClick = (task: Task) => {
-    setSelectedTask(task);
-    setUploadModalOpen(true);
+      try {
+        // 1. Fetch Tasks
+        const { data: tasksData } = await supabase
+          .from('tasks')
+          .select('*')
+          .order('due_date', { ascending: true });
+
+        // 2. Fetch Submissions
+        const { data: subsData } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('student_id', user.id);
+
+        // 3. Fetch Chat Messages
+        const { data: msgData } = await supabase
+          .from('messages')
+          .select('*, profiles(full_name)')
+          .order('created_at', { ascending: true });
+          
+        // 4. Fetch Mentor Name
+        if (tasksData && tasksData.length > 0 && tasksData[0].created_by) {
+           const { data: mentorData } = await supabase
+             .from('profiles')
+             .select('full_name')
+             .eq('id', tasksData[0].created_by)
+             .single();
+           if (mentorData) setMentorName(mentorData.full_name);
+        }
+
+        // 5. Fetch My Group (Using Email)
+        if (user.email) {
+            const { data: memberData } = await supabase
+                .from('group_members')
+                .select('groups(*)')
+                .eq('student_email', user.email)
+                .maybeSingle();
+            
+            if (memberData?.groups) {
+                // @ts-ignore
+                setMyGroup(memberData.groups);
+            }
+        }
+
+        setTasks(tasksData || []);
+        setSubmissions(subsData || []);
+        setMessages(msgData || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    // Subscribe to chat
+    const msgSubscription = supabase
+      .channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+         supabase.from('messages').select('*, profiles(full_name)').eq('id', payload.new.id).single()
+         .then(({ data }) => {
+            if(data) setMessages(prev => [...prev, data]);
+         });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(msgSubscription); };
+
+  }, [user]);
+
+  const handleFileUpload = async (taskId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) return;
+    const file = event.target.files[0];
+    setUploadingTaskId(taskId);
+
+    try {
+      if (!user) throw new Error("User not found");
+      const filePath = `${taskId}/${user.id}/${Date.now()}-${file.name}`;
+      
+      await supabase.storage.from('assignments').upload(filePath, file);
+      const { data: { publicUrl } } = supabase.storage.from('assignments').getPublicUrl(filePath);
+
+      const { data: newSub } = await supabase
+        .from('submissions')
+        .insert({ task_id: taskId, student_id: user.id, file_name: file.name, file_url: publicUrl })
+        .select().single();
+
+      if (newSub) {
+         setSubmissions(prev => [...prev.filter(s => s.task_id !== taskId), newSub]);
+         toast.success("Assignment submitted!");
+      }
+    } catch (error: any) {
+      toast.error("Upload failed");
+    } finally {
+      setUploadingTaskId(null);
+    }
   };
 
-  const handleLeaveGroup = () => {
-    toast({
-      title: "Left group successfully",
-      description: "Join another using a code.",
-    });
-    setLeaveGroupOpen(false);
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !user) return;
+    await supabase.from('messages').insert({ content: messageInput, sender_id: user.id });
+    setMessageInput("");
   };
 
-  // Chart.js data with vibrant colors
+  // Calcs
+  const upcomingTasks = tasks.filter((t) => t.status !== "done" && new Date(t.due_date) > new Date()).slice(0, 3);
+  const pendingTasksCount = tasks.length - submissions.length;
+  const progressPercentage = Math.round((submissions.length / (tasks.length || 1)) * 100);
   const progressData = {
-    labels: ["Completed", "Pending", "Overdue"],
-    datasets: [{
-      data: [studentProgress.completed, studentProgress.pending, studentProgress.overdue],
-      backgroundColor: ["#10b981", "#f59e0b", "#ef4444"],
-      borderWidth: 0,
-    }]
+    labels: ["Completed", "Pending"],
+    datasets: [{ data: [progressPercentage, 100 - progressPercentage], backgroundColor: ["#10b981", "#f59e0b"], borderWidth: 0 }]
   };
-
   const taskStatusData = {
-    labels: ["To Do", "Submitted", "Graded"],
-    datasets: [{
-      label: "Tasks",
-      data: [studentProgress.tasksByStatus.todo, studentProgress.tasksByStatus.submitted, studentProgress.tasksByStatus.graded],
-      backgroundColor: ["#3b82f6", "#f59e0b", "#8b5cf6"],
-    }]
+    labels: ["To Do", "Submitted"],
+    datasets: [{ label: "Tasks", data: [tasks.length - submissions.length, submissions.length], backgroundColor: ["#3b82f6", "#f59e0b"] }]
   };
 
-  const semesterData = {
-    labels: ["Sem 3", "Sem 4", "Sem 5", "Sem 6"],
-    datasets: [{
-      label: "Progress %",
-      data: studentProgress.semesterProgress,
-      backgroundColor: ["#3b82f6", "#10b981", "#f59e0b", "#ec4899"],
-    }]
-  };
+  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
 
   return (
     <DashboardLayout>
@@ -90,104 +206,86 @@ export default function StudentDashboard() {
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
             <p className="text-muted-foreground">Track your projects and deadlines</p>
           </div>
-          <Button variant="destructive" size="sm" onClick={() => setLeaveGroupOpen(true)}>
-            Leave Group
-          </Button>
+          {myGroup && (
+             <Button variant="destructive" size="sm" onClick={() => setLeaveGroupOpen(true)}>Leave Group</Button>
+          )}
         </div>
 
-        {/* Quick View Grid */}
+        {/* MY GROUP CARD */}
+        {myGroup ? (
+            <Card className="bg-primary/5 border-primary/20">
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                        <Users className="h-5 w-5 text-primary" />
+                        {myGroup.name}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex gap-4 text-sm text-muted-foreground">
+                        <Badge variant="secondary">{myGroup.semester}</Badge>
+                        <span>{myGroup.description}</span>
+                    </div>
+                </CardContent>
+            </Card>
+        ) : (
+            <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-6 text-center">
+                    <Users className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm font-medium">You are not in a group yet.</p>
+                    <p className="text-xs text-muted-foreground">Ask your mentor to add you by email.</p>
+                </CardContent>
+            </Card>
+        )}
+
         <div className="grid gap-4 md:grid-cols-3">
           <NoticeCarousel />
-
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="h-4 w-4 text-primary" />
-                Upcoming Deadlines
-              </CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Calendar className="h-4 w-4 text-primary" /> Upcoming Deadlines</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {upcomingTasks.map((task) => (
                 <div key={task.id} className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(task.dueDate), "MMM dd")}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {Math.ceil((new Date(task.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}d
-                  </Badge>
+                  <div className="flex-1"><p className="text-sm font-medium">{task.title}</p><p className="text-xs text-muted-foreground">{format(new Date(task.due_date), "MMM dd")}</p></div>
                 </div>
               ))}
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4 text-warning" />
-                Quick Stats
-              </CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock className="h-4 w-4 text-warning" /> Quick Stats</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="text-2xl font-bold text-foreground">{pendingTasksCount}</p>
-                <p className="text-xs text-muted-foreground">Pending Tasks</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{studentSubmissions.length}</p>
-                <p className="text-xs text-muted-foreground">Total Submissions</p>
-              </div>
+              <div><p className="text-2xl font-bold">{pendingTasksCount}</p><p className="text-xs text-muted-foreground">Pending Tasks</p></div>
+              <div><p className="text-2xl font-bold">{submissions.length}</p><p className="text-xs text-muted-foreground">Total Submissions</p></div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tasks Assigned by Mentor */}
+        {/* Tasks List */}
         <div>
           <h2 className="text-2xl font-bold text-foreground mb-4">Tasks Assigned</h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {mockTasks.slice(0, 6).map((task) => {
-              const isOverdue = isPast(new Date(task.dueDate)) && task.status !== "done";
-              const mentor = mockUsers.find(u => u.role === "mentor");
-              
+            {tasks.map((task) => {
+              const isOverdue = isPast(new Date(task.due_date)) && task.status !== "done";
+              const isSubmitted = submissions.some(s => s.task_id === task.id);
               return (
                 <Card key={task.id} className="relative">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-base">{task.title}</CardTitle>
-                      {isOverdue && (
-                        <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-                      )}
+                      {isSubmitted && <CheckCircle className="h-5 w-5 text-green-500" />}
                     </div>
-                    <p className="text-xs text-muted-foreground">by {mentor?.name}</p>
+                    <p className="text-xs text-muted-foreground">by {mentorName}</p>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className={isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}>
-                        {format(new Date(task.dueDate), "MMM dd, yyyy")}
-                      </span>
+                     <div className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4 text-muted-foreground" /><span>{format(new Date(task.due_date), "MMM dd")}</span></div>
+                    <div className="w-full">
+                        <input type="file" id={`file-${task.id}`} className="hidden" onChange={(e) => handleFileUpload(task.id, e)} disabled={uploadingTaskId === task.id} />
+                      <label htmlFor={`file-${task.id}`}>
+                        <div className="w-full cursor-pointer">
+                          <Button variant={isSubmitted ? "outline" : "default"} className={`w-full pointer-events-none ${isSubmitted ? "border-green-600 text-green-600" : ""}`} size="sm" disabled={uploadingTaskId === task.id}>
+                            {uploadingTaskId === task.id ? <Loader2 className="h-4 w-4 animate-spin" /> : isSubmitted ? "Edit Submission" : "Upload Assignment"}
+                          </Button>
+                        </div>
+                      </label>
                     </div>
-                    <Badge variant={
-                      task.status === "done" ? "default" : 
-                      task.status === "in-progress" ? "secondary" : 
-                      "outline"
-                    }>
-                      {task.status === "done" ? "Graded" : 
-                       task.status === "review" ? "Submitted" : 
-                       "To Do"}
-                    </Badge>
-                    {task.status !== "done" && task.status !== "review" && (
-                      <Button 
-                        onClick={() => handleUploadClick(task)} 
-                        className="w-full" 
-                        size="sm"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload Assignment
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               );
@@ -195,197 +293,43 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Colorful Progress Dashboard */}
         <Card>
-          <CardHeader>
-            <CardTitle>Your Project at a Glance</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Your Project Progress</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid gap-6 md:grid-cols-3">
-              <div>
-                <h3 className="text-sm font-medium mb-3 text-center">Project Progress</h3>
-                <Doughnut 
-                  data={progressData} 
-                  options={{
-                    responsive: true,
-                    plugins: {
-                      legend: { position: "bottom" },
-                      tooltip: { 
-                        callbacks: {
-                          label: (context) => `${context.label}: ${context.parsed}%`
-                        }
-                      }
-                    }
-                  }}
-                />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium mb-3 text-center">Tasks by Status</h3>
-                <Bar 
-                  data={taskStatusData} 
-                  options={{
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                      y: { beginAtZero: true }
-                    }
-                  }}
-                />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium mb-3 text-center">Semester Timeline</h3>
-                <Bar 
-                  data={semesterData} 
-                  options={{
-                    indexAxis: "y" as const,
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                      x: { beginAtZero: true, max: 100 }
-                    }
-                  }}
-                />
-              </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="h-64 flex justify-center"><Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} /></div>
+              <div className="h-64 flex justify-center"><Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} /></div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabs Section */}
-        <Tabs defaultValue="kanban" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="kanban">Kanban Board</TabsTrigger>
-            <TabsTrigger value="submissions">My Submissions</TabsTrigger>
-            <TabsTrigger value="chat">Group Chat</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="kanban">
-            <KanbanBoard groupId="g1" />
-          </TabsContent>
-
-          <TabsContent value="submissions">
-            <Card>
-              <CardHeader>
-                <CardTitle>Submission History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Task</TableHead>
-                      <TableHead>File</TableHead>
-                      <TableHead>Submitted</TableHead>
-                      <TableHead>Grade</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {studentSubmissions.map((sub) => {
-                      const task = mockTasks.find((t) => t.id === sub.taskId);
-                      return (
-                        <TableRow key={sub.id}>
-                          <TableCell className="font-medium">{task?.title}</TableCell>
-                          <TableCell className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            {sub.fileUrl}
-                          </TableCell>
-                          <TableCell>{format(new Date(sub.submittedAt), "MMM dd, yyyy")}</TableCell>
-                          <TableCell>
-                            {sub.grade ? (
-                              <Badge variant={sub.grade >= 80 ? "default" : "secondary"}>
-                                {sub.grade}/100
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">Pending</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {sub.grade ? (
-                              <Badge className="bg-success text-success-foreground">Graded</Badge>
-                            ) : (
-                              <Badge className="bg-warning text-warning-foreground">Under Review</Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
+        <Tabs defaultValue="chat" className="space-y-4">
+          <TabsList><TabsTrigger value="chat">Group Chat</TabsTrigger><TabsTrigger value="submissions">History</TabsTrigger></TabsList>
           <TabsContent value="chat">
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader>
-                <CardTitle>AI Research Project - Group Chat</CardTitle>
-              </CardHeader>
+            <Card className="h-[500px] flex flex-col">
+              <CardHeader><CardTitle>Group Chat</CardTitle></CardHeader>
               <CardContent className="flex-1 flex flex-col">
-                <div className="flex-1 space-y-4 overflow-y-auto mb-4">
-                  {mockMessages.map((msg) => {
-                    const sender = mockUsers.find((u) => u.id === msg.senderId);
-                    return (
-                      <div key={msg.id} className="flex items-start gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">{sender?.avatar}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground">
-                              {sender?.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(msg.timestamp), "HH:mm")}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{msg.content}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex-1 space-y-4 overflow-y-auto mb-4 p-2">
+                  {messages.map((msg) => (
+                    <div key={msg.id} className="flex items-start gap-3">
+                       <Avatar className="h-8 w-8"><AvatarFallback>{msg.profiles?.full_name?.[0] || "?"}</AvatarFallback></Avatar>
+                       <div><div className="flex items-center gap-2"><span className="text-sm font-semibold">{msg.profiles?.full_name || "Unknown"}</span><span className="text-xs text-muted-foreground">{format(new Date(msg.created_at), "HH:mm")}</span></div><p className="text-sm text-muted-foreground">{msg.content}</p></div>
+                    </div>
+                  ))}
                 </div>
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Type a message... (@mention teammates)"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        setMessage("");
-                      }
-                    }}
-                  />
-                  <Button size="icon">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+                <div className="flex gap-2"><Input placeholder="Type message..." value={messageInput} onChange={(e) => setMessageInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} /><Button size="icon" onClick={handleSendMessage}><Send className="h-4 w-4" /></Button></div>
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="submissions">
+            <Card><CardContent><Table><TableHeader><TableRow><TableHead>Task</TableHead><TableHead>File</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                  <TableBody>{submissions.map((sub) => { const t = tasks.find(x => x.id === sub.task_id); return (<TableRow key={sub.id}><TableCell>{t?.title}</TableCell><TableCell><a href={sub.file_url} target="_blank" className="text-blue-600 hover:underline">{sub.file_name}</a></TableCell><TableCell>{format(new Date(sub.submitted_at), "MMM dd")}</TableCell></TableRow>)})}</TableBody>
+                </Table></CardContent></Card>
           </TabsContent>
         </Tabs>
       </div>
-
-      <UploadAssignmentModal 
-        open={uploadModalOpen} 
-        onOpenChange={setUploadModalOpen} 
-        task={selectedTask}
-      />
-
       <AlertDialog open={leaveGroupOpen} onOpenChange={setLeaveGroupOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave Group?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to leave your current group? You'll need a new code to join another group.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLeaveGroup} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Leave Group
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Leave Group?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction>Confirm</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </DashboardLayout>
   );
