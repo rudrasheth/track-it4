@@ -1,201 +1,119 @@
-import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Send, Paperclip, FileText, Users } from "lucide-react";
-import { mockGroups, mockMessages, mockUsers } from "@/lib/mockData";
+import { Button } from "@/components/ui/button";
+import { Send, Loader2 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 export default function MentorGroupChat() {
   const { user } = useAuth();
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [messageInput, setMessageInput] = useState("");
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Filter groups where user is a mentor
-  const mentorGroups = mockGroups.filter((group) =>
-    group.mentors.includes(user?.id || "")
-  );
+  useEffect(() => {
+    // 1. Fetch initial history
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('*, profiles(full_name)')
+        .order('created_at', { ascending: true });
+      
+      if (data) setMessages(data);
+      setLoading(false);
+    };
 
-  // Get messages for selected group
-  const groupMessages = selectedGroupId
-    ? mockMessages.filter((msg) => msg.groupId === selectedGroupId)
-    : [];
+    fetchMessages();
 
-  const selectedGroup = mentorGroups.find((g) => g.id === selectedGroupId);
+    // 2. Real-time Subscription
+    const channel = supabase
+      .channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+         // Fetch user name for the new message
+         const { data: userData } = await supabase.from('profiles').select('full_name').eq('id', payload.new.sender_id).single();
+         const msgWithUser = { ...payload.new, profiles: userData };
+         setMessages((prev) => [...prev, msgWithUser]);
+      })
+      .subscribe();
 
-  const handleSendMessage = () => {
-    if (!messageInput.trim()) return;
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
-    toast({
-      title: "Message sent",
-      description: `Sent to ${selectedGroup?.name}`,
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!newMessage.trim() || !user) return;
+    const text = newMessage;
+    setNewMessage(""); // Clear input immediately for better UX
+
+    await supabase.from('messages').insert({
+        content: text,
+        sender_id: user.id
     });
-
-    setMessageInput("");
-  };
-
-  const getUserName = (userId: string) => {
-    const foundUser = mockUsers.find((u) => u.id === userId);
-    return foundUser?.name || "Unknown";
-  };
-
-  const getUserAvatar = (userId: string) => {
-    const foundUser = mockUsers.find((u) => u.id === userId);
-    return foundUser?.avatar || "?";
   };
 
   return (
     <DashboardLayout>
-      <div className="h-[calc(100vh-8rem)]">
-        <Card className="h-full">
-          <CardContent className="p-0 h-full">
-            <div className="grid grid-cols-12 h-full divide-x divide-border">
-              {/* Left Panel - Group List */}
-              <div className="col-span-12 md:col-span-4 lg:col-span-3">
-                <div className="p-4 border-b border-border">
-                  <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    My Groups
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {mentorGroups.length} active groups
-                  </p>
-                </div>
-                <ScrollArea className="h-[calc(100%-5rem)]">
-                  <div className="p-2 space-y-1">
-                    {mentorGroups.map((group) => (
-                      <button
-                        key={group.id}
-                        onClick={() => setSelectedGroupId(group.id)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors ${
-                          selectedGroupId === group.id
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-accent hover:text-accent-foreground"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{group.name}</p>
-                            <p className={`text-sm ${
-                              selectedGroupId === group.id
-                                ? "text-primary-foreground/80"
-                                : "text-muted-foreground"
-                            }`}>
-                              {group.students.length} students
-                            </p>
-                          </div>
-                          <Badge variant="outline" className="ml-2">
-                            Sem {group.semester}
-                          </Badge>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-
-              {/* Right Panel - Chat */}
-              <div className="col-span-12 md:col-span-8 lg:col-span-9 flex flex-col">
-                {selectedGroup ? (
-                  <>
-                    {/* Chat Header */}
-                    <div className="p-4 border-b border-border">
-                      <h3 className="text-lg font-semibold text-foreground">{selectedGroup.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Semester {selectedGroup.semester} • {selectedGroup.students.length} students
-                      </p>
-                    </div>
-
-                    {/* Messages */}
-                    <ScrollArea className="flex-1 p-4">
-                      <div className="space-y-4">
-                        {groupMessages.map((message) => {
-                          const isCurrentUser = message.senderId === user?.id;
-                          
-                          return (
-                            <div
-                              key={message.id}
-                              className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}
-                            >
-                              <div className={`flex gap-3 max-w-[70%] ${isCurrentUser ? "flex-row-reverse" : ""}`}>
-                                <div className="flex-shrink-0">
-                                  <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-                                    {getUserAvatar(message.senderId)}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className={`rounded-lg p-3 ${
-                                    isCurrentUser
-                                      ? "bg-primary text-primary-foreground"
-                                      : "bg-muted text-foreground"
-                                  }`}>
-                                    {!isCurrentUser && (
-                                      <p className="text-xs font-semibold mb-1">
-                                        {getUserName(message.senderId)}
-                                      </p>
-                                    )}
-                                    <p className="text-sm">{message.content}</p>
-                                    {message.fileUrl && (
-                                      <div className="mt-2 flex items-center gap-2 p-2 rounded bg-background/10">
-                                        <FileText className="h-4 w-4" />
-                                        <span className="text-xs">{message.fileUrl}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <p className={`text-xs text-muted-foreground mt-1 ${
-                                    isCurrentUser ? "text-right" : ""
-                                  }`}>
-                                    {new Date(message.timestamp).toLocaleTimeString("en-IN", {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </p>
-                                </div>
-                              </div>
+      <div className="h-[calc(100vh-100px)] flex flex-col">
+        <Card className="flex-1 flex flex-col shadow-lg">
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2">
+               Global Group Chat
+            </CardTitle>
+          </CardHeader>
+          
+          <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+            {/* Messages Area */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
+              {loading ? (
+                <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin text-muted-foreground" /></div>
+              ) : messages.length === 0 ? (
+                <div className="text-center text-muted-foreground mt-10">No messages yet. Say hello!</div>
+              ) : (
+                messages.map((msg) => {
+                    const isMe = msg.sender_id === user?.id;
+                    return (
+                        <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+                            <Avatar className="h-8 w-8 border">
+                                <AvatarFallback className={isMe ? "bg-primary text-primary-foreground" : ""}>
+                                    {msg.profiles?.full_name?.[0] || "?"}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className={`max-w-[70%] rounded-lg p-3 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-white border shadow-sm"}`}>
+                                {!isMe && <p className="text-[10px] opacity-70 mb-1 font-bold">{msg.profiles?.full_name}</p>}
+                                <p>{msg.content}</p>
+                                <p className={`text-[10px] mt-1 text-right ${isMe ? "opacity-70" : "text-muted-foreground"}`}>
+                                    {format(new Date(msg.created_at), "HH:mm")}
+                                </p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
+                        </div>
+                    );
+                })
+              )}
+            </div>
 
-                    {/* Message Input */}
-                    <div className="p-4 border-t border-border">
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="icon">
-                          <Paperclip className="h-4 w-4" />
-                        </Button>
-                        <Input
-                          placeholder="Type a message..."
-                          value={messageInput}
-                          onChange={(e) => setMessageInput(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === "Enter") handleSendMessage();
-                          }}
-                          className="flex-1"
-                        />
-                        <Button onClick={handleSendMessage}>
-                          <Send className="h-4 w-4 mr-2" />
-                          Send
-                        </Button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-center p-8">
-                    <div>
-                      <Users className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold text-foreground mb-2">Select a Group</h3>
-                      <p className="text-muted-foreground">
-                        Choose a group from the left to start chatting
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+            {/* Input Area */}
+            <div className="p-4 bg-white border-t flex gap-2">
+              <Input 
+                placeholder="Type a message..." 
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                className="flex-1"
+              />
+              <Button size="icon" onClick={handleSend} disabled={!newMessage.trim()}>
+                <Send className="h-4 w-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>

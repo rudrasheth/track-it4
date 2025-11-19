@@ -7,12 +7,14 @@ import {
 } from "react";
 import { supabase } from "@/supabaseClient";
 import { User as SupabaseUser } from "@supabase/supabase-js";
-import { UserRole } from "@/lib/mockData"; // Keeping the type definition
+import { UserRole } from "@/lib/mockData"; 
 
+// 1. UPDATED INTERFACE: Added 'user_metadata'
 interface AppUser {
   id: string;
   email: string | undefined;
   role: UserRole;
+  user_metadata: any; // <--- This fixes your error
 }
 
 interface AuthContextType {
@@ -30,7 +32,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Check active session on load
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -42,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     getSession();
 
-    // 2. Listen for login/logout events
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (session?.user) {
@@ -59,15 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Helper to format the Supabase user into our AppUser
   const processUser = (supabaseUser: SupabaseUser) => {
-    // crucial: we get the role from metadata
     const role = (supabaseUser.user_metadata?.role as UserRole) || "student";
     
+    // 2. UPDATED SET USER: Passing metadata
     setUser({
       id: supabaseUser.id,
       email: supabaseUser.email,
       role: role,
+      user_metadata: supabaseUser.user_metadata, // <--- Passing the data here
     });
     setLoading(false);
   };

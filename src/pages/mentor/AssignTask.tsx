@@ -4,32 +4,64 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useEffect } from "react";
 import { supabase } from "@/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
+interface Group {
+  id: string;
+  name: string;
+}
+
 export default function AssignTask() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  
+  // State for Groups List
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     due_date: ""
   });
 
+  // Fetch the Mentor's Groups on Load
+  useEffect(() => {
+    const fetchGroups = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id, name')
+        .eq('created_by', user.id); // Only show groups created by this mentor
+      
+      if (error) console.error("Error fetching groups:", error);
+      else setGroups(data || []);
+    };
+    fetchGroups();
+  }, [user]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!selectedGroup) {
+      toast.error("Please select a group for this task");
+      return;
+    }
+
     setLoading(true);
 
     try {
       // 1. Get Current User ID
-      const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) throw new Error("You must be logged in");
 
-      // 2. Insert Task with 'created_by'
+      // 2. Insert Task with 'group_id'
       const { error } = await supabase
         .from('tasks')
         .insert([
@@ -38,13 +70,14 @@ export default function AssignTask() {
             description: formData.description,
             due_date: formData.due_date,
             status: 'todo',
-            created_by: user.id // <--- IMPORTANT: Links task to Mentor
+            created_by: user.id,
+            group_id: selectedGroup // <--- IMPORTANT: Links task to the specific Group
           }
         ]);
 
       if (error) throw error;
 
-      toast.success("Task assigned successfully!");
+      toast.success("Task assigned to group successfully!");
       navigate("/mentor/dashboard");
       
     } catch (error: any) {
@@ -66,6 +99,28 @@ export default function AssignTask() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              
+              {/* GROUP SELECTOR */}
+              <div className="space-y-2">
+                <Label htmlFor="group">Select Group</Label>
+                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.length === 0 ? (
+                      <SelectItem value="none" disabled>No groups found</SelectItem>
+                    ) : (
+                      groups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="title">Task Title</Label>
                 <Input 

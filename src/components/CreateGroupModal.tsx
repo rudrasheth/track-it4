@@ -1,116 +1,195 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
+import { supabase } from "@/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Copy } from "lucide-react";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 
 interface CreateGroupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function CreateGroupModal({ open, onOpenChange }: CreateGroupModalProps) {
+export function CreateGroupModal({ open, onOpenChange, onSuccess }: CreateGroupModalProps) {
+  const { user } = useAuth();
+  const [creating, setCreating] = useState(false);
+  
+  // Form State
   const [groupName, setGroupName] = useState("");
   const [semester, setSemester] = useState("");
-  const [students, setStudents] = useState("");
-  const [coMentor, setCoMentor] = useState("");
+  const [description, setDescription] = useState("");
+  const [studentEmails, setStudentEmails] = useState("");
 
-  const generateCode = () => {
-    return Array.from({ length: 6 }, () => 
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)]
-    ).join("");
-  };
+  const handleCreateGroup = async () => {
+    if (!groupName || !semester) {
+      toast.error("Please fill in the group name and select a semester");
+      return;
+    }
+    setCreating(true);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const joinCode = generateCode();
-    
-    toast.success("Group created!", {
-      description: (
-        <div className="flex items-center gap-2">
-          <span>Join Code: {joinCode}</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              navigator.clipboard.writeText(joinCode);
-              toast.success("Code copied!");
-            }}
-          >
-            <Copy className="h-3 w-3" />
-          </Button>
-        </div>
-      ),
-    });
-    
-    setGroupName("");
-    setSemester("");
-    setStudents("");
-    setCoMentor("");
-    onOpenChange(false);
+    try {
+      // --- STEP 1: VERIFY EMAILS EXIST ---
+      const emails = studentEmails
+        .split(',')
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e.length > 0);
+
+      if (emails.length > 0) {
+        const { data: existingUsers, error: checkError } = await supabase
+          .from('profiles')
+          .select('email')
+          .in('email', emails);
+
+        if (checkError) throw checkError;
+
+        const foundEmails = existingUsers?.map(u => u.email) || [];
+        const missingEmails = emails.filter(e => !foundEmails.includes(e));
+
+        if (missingEmails.length > 0) {
+          toast.error(`These students are not registered: ${missingEmails.join(', ')}`);
+          setCreating(false);
+          return; // STOP HERE
+        }
+      }
+      // -----------------------------------
+
+      // 2. Create Group
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: groupName,
+          semester: semester,
+          description: description,
+          created_by: user?.id
+        })
+        .select()
+        .single();
+
+      if (groupError) throw groupError;
+
+      // 3. Add Verified Students
+      if (emails.length > 0) {
+        const membersData = emails.map(email => ({
+          group_id: groupData.id,
+          student_email: email
+        }));
+
+        const { error: memberError } = await supabase
+          .from('group_members')
+          .insert(membersData);
+
+        if (memberError) throw memberError;
+      }
+
+      toast.success("Group created successfully!");
+      
+      // Reset Form
+      setGroupName("");
+      setSemester("");
+      setDescription("");
+      setStudentEmails("");
+      
+      onOpenChange(false);
+      if (onSuccess) onSuccess();
+
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to create group");
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Group</DialogTitle>
+          <DialogDescription>
+            Enter student emails. <b>Only registered students can be added.</b>
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="groupName">Group Name</Label>
-            <Input
-              id="groupName"
+        <div className="grid gap-4 py-4">
+          
+          {/* Group Name Input */}
+          <div className="grid gap-2">
+            <Label htmlFor="name">Group Name</Label>
+            <Input 
+              id="name" 
+              placeholder="e.g. AI Team A" 
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              placeholder="e.g., Team Alpha"
-              required
             />
           </div>
 
-          <div>
-            <Label htmlFor="semester">Start Semester</Label>
-            <Select value={semester} onValueChange={setSemester} required>
+          {/* Semester Dropdown (Updated) */}
+          <div className="grid gap-2">
+            <Label htmlFor="semester">Semester</Label>
+            <Select value={semester} onValueChange={setSemester}>
               <SelectTrigger>
-                <SelectValue placeholder="Select semester" />
+                <SelectValue placeholder="Select Semester" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="3">Semester 3</SelectItem>
-                <SelectItem value="4">Semester 4</SelectItem>
-                <SelectItem value="5">Semester 5</SelectItem>
-                <SelectItem value="6">Semester 6</SelectItem>
+                <SelectItem value="Sem 3">Semester 3</SelectItem>
+                <SelectItem value="Sem 4">Semester 4</SelectItem>
+                <SelectItem value="Sem 5">Semester 5</SelectItem>
+                <SelectItem value="Sem 6">Semester 6</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="students">Add Students (4-5)</Label>
-            <Input
-              id="students"
-              value={students}
-              onChange={(e) => setStudents(e.target.value)}
-              placeholder="Enter student emails"
-              required
+          {/* Emails Input */}
+          <div className="grid gap-2">
+            <Label htmlFor="emails">Student Emails (Comma separated)</Label>
+            <Textarea 
+              id="emails" 
+              placeholder="student1@mail.com, student2@mail.com" 
+              value={studentEmails}
+              onChange={(e) => setStudentEmails(e.target.value)}
             />
           </div>
 
-          <div>
-            <Label htmlFor="coMentor">Assign Co-Mentor</Label>
-            <Input
-              id="coMentor"
-              value={coMentor}
-              onChange={(e) => setCoMentor(e.target.value)}
-              placeholder="Enter mentor email"
+          {/* Description Input */}
+          <div className="grid gap-2">
+            <Label htmlFor="desc">Description (Optional)</Label>
+            <Input 
+              id="desc" 
+              placeholder="Optional" 
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-
-          <Button type="submit" className="w-full">
-            Create Group
+        </div>
+        <DialogFooter>
+          <Button onClick={handleCreateGroup} disabled={creating}>
+            {creating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...
+              </>
+            ) : (
+              "Create Group"
+            )}
           </Button>
-        </form>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
