@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, FileText, Send, Upload, AlertCircle, Loader2, CheckCircle, Users } from "lucide-react";
+import { Calendar, Clock, FileText, Send, Upload, AlertCircle, Loader2, CheckCircle, Users, ArrowRight } from "lucide-react";
 import { format, isPast } from "date-fns";
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -24,23 +24,57 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, R
 import { Doughnut, Bar } from "react-chartjs-2";
 import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend);
 
-// ... Types remain the same ...
-interface Task { id: string; title: string; description: string; due_date: string; status: string; created_by: string; group_id: string; }
-interface Submission { id: string; task_id: string; student_id: string; file_name: string; file_url: string; submitted_at: string; grade?: number; }
-interface Message { id: string; content: string; sender_id: string; created_at: string; profiles?: { full_name: string }; }
-interface Group { id: string; name: string; semester: string; description: string; }
+// --- Types ---
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  status: string;
+  created_by: string; 
+  group_id: string;
+}
+
+interface Submission {
+  id: string;
+  task_id: string;
+  student_id: string;
+  file_name: string;
+  file_url: string;
+  submitted_at: string;
+  grade?: number;
+}
+
+interface Message {
+  id: string;
+  content: string;
+  sender_id: string;
+  created_at: string;
+  profiles?: { full_name: string };
+}
+
+interface Group {
+  id: string;
+  name: string;
+  semester: string;
+  description: string;
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   
+  // UI State
   const [messageInput, setMessageInput] = useState("");
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Data State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -53,7 +87,7 @@ export default function StudentDashboard() {
       if (!user || !user.email) return;
 
       try {
-        // 1. FIRST: Find My Group ID
+        // 1. Find My Group ID
         const { data: memberData } = await supabase
             .from('group_members')
             .select('group_id, groups(*)')
@@ -71,7 +105,7 @@ export default function StudentDashboard() {
             const { data } = await supabase
               .from('tasks')
               .select('*')
-              .eq('group_id', myGroupId) // <--- THIS IS THE KEY FIX
+              .eq('group_id', myGroupId)
               .order('due_date', { ascending: true });
             tasksData = data || [];
         }
@@ -82,7 +116,7 @@ export default function StudentDashboard() {
           .select('*')
           .eq('student_id', user.id);
 
-        // 4. Fetch Chat
+        // 4. Fetch Chat Messages
         const { data: msgData } = await supabase
           .from('messages')
           .select('*, profiles(full_name)')
@@ -106,6 +140,7 @@ export default function StudentDashboard() {
 
     fetchData();
 
+    // Real-time chat listener
     const msgSubscription = supabase.channel('public:messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
          const { data } = await supabase.from('messages').select('*, profiles(full_name)').eq('id', payload.new.id).single();
@@ -115,10 +150,7 @@ export default function StudentDashboard() {
     return () => { supabase.removeChannel(msgSubscription); };
   }, [user]);
 
-  // ... Keep existing handlers (handleFileUpload, handleSendMessage, etc.) ...
-  // ... (Copy them from previous code or I can include them if needed, but for brevity assuming you keep them) ...
-  
-  // --- RE-ADDING HANDLERS FOR COMPLETENESS ---
+  // --- HANDLERS ---
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
   const handleFileUpload = async (taskId: string, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,15 +176,48 @@ export default function StudentDashboard() {
     setMessageInput("");
     await supabase.from('messages').insert({ content: text, sender_id: user.id });
   };
-  // -------------------------------------------
 
-  // Calcs
+  const handleLeaveGroup = async () => {
+    if(!user?.email) return;
+    await supabase.from('group_members').delete().eq('student_email', user.email);
+    window.location.reload(); // Refresh to reset state
+  };
+
+  // --- FIXED CALCULATIONS (SOLVES THE -8 ISSUE) ---
   const upcomingTasks = tasks.filter((t) => t.status !== "done" && new Date(t.due_date) > new Date()).slice(0, 3);
-  const pendingTasksCount = tasks.length - submissions.length;
-  const progressPercentage = tasks.length > 0 ? Math.round((submissions.length / tasks.length) * 100) : 0;
   
-  const progressData = { labels: ["Completed", "Pending"], datasets: [{ data: [progressPercentage, 100 - progressPercentage], backgroundColor: ["#10b981", "#f59e0b"], borderWidth: 0 }] };
-  const taskStatusData = { labels: ["To Do", "Submitted"], datasets: [{ label: "Tasks", data: [tasks.length - submissions.length, submissions.length], backgroundColor: ["#3b82f6", "#f59e0b"] }] };
+  // 1. Get IDs of tasks assigned to this group
+  const groupTaskIds = new Set(tasks.map(t => t.id));
+
+  // 2. Filter submissions to only count those relevant to current tasks
+  const completedTaskIds = new Set(
+    submissions
+      .filter(s => groupTaskIds.has(s.task_id))
+      .map(s => s.task_id)
+  );
+  
+  const completedCount = completedTaskIds.size;
+  const pendingTasksCount = tasks.length - completedCount;
+  
+  const progressPercentage = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  
+  const progressData = { 
+    labels: ["Completed", "Pending"], 
+    datasets: [{ 
+      data: [progressPercentage, 100 - progressPercentage], 
+      backgroundColor: ["#10b981", "#f59e0b"], 
+      borderWidth: 0 
+    }] 
+  };
+  
+  const taskStatusData = { 
+    labels: ["To Do", "Submitted"], 
+    datasets: [{ 
+      label: "Tasks", 
+      data: [pendingTasksCount, completedCount], 
+      backgroundColor: ["#f59e0b", "#10b981"] 
+    }] 
+  };
 
   if (loading) return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -195,7 +260,7 @@ export default function StudentDashboard() {
             <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock className="h-4 w-4 text-warning" /> Quick Stats</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div><p className="text-2xl font-bold">{pendingTasksCount}</p><p className="text-xs text-muted-foreground">Pending Tasks</p></div>
-              <div><p className="text-2xl font-bold">{submissions.length}</p><p className="text-xs text-muted-foreground">Total Submissions</p></div>
+              <div><p className="text-2xl font-bold">{completedCount}</p><p className="text-xs text-muted-foreground">Total Submissions</p></div>
             </CardContent>
           </Card>
         </div>
@@ -208,9 +273,9 @@ export default function StudentDashboard() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {tasks.map((task) => {
                   const isOverdue = isPast(new Date(task.due_date)) && task.status !== "done";
-                  const isSubmitted = submissions.some(s => s.task_id === task.id);
+                  const isSubmitted = completedTaskIds.has(task.id);
                   return (
-                    <Card key={task.id} className="relative">
+                    <Card key={task.id} className={`relative ${isSubmitted ? "border-green-200 bg-green-50/30" : ""}`}>
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between"><CardTitle className="text-base">{task.title}</CardTitle>{isSubmitted && <CheckCircle className="h-5 w-5 text-green-500" />}</div>
                         <p className="text-xs text-muted-foreground">by {mentorName}</p>
@@ -236,24 +301,39 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {/* CHARTS */}
         <Card><CardHeader><CardTitle>Your Project Progress</CardTitle></CardHeader><CardContent><div className="grid gap-6 md:grid-cols-2"><div className="h-64 flex justify-center"><Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} /></div><div className="h-64 flex justify-center"><Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} /></div></div></CardContent></Card>
         
-        {/* ... Tabs/Chat Code remains the same ... */}
+        {/* CHAT */}
          <Tabs defaultValue="chat" className="space-y-4">
           <TabsList><TabsTrigger value="chat">Group Chat</TabsTrigger><TabsTrigger value="submissions">History</TabsTrigger></TabsList>
           <TabsContent value="chat">
             <Card className="h-[500px] flex flex-col">
               <CardHeader><CardTitle>Group Chat</CardTitle></CardHeader>
               <CardContent className="flex-1 flex flex-col">
-                <div className="flex-1 space-y-4 overflow-y-auto mb-4 p-2">
-                  {messages.map((msg) => (
-                    <div key={msg.id} className="flex items-start gap-3">
-                       <Avatar className="h-8 w-8"><AvatarFallback>{msg.profiles?.full_name?.[0] || "?"}</AvatarFallback></Avatar>
-                       <div><div className="flex items-center gap-2"><span className="text-sm font-semibold">{msg.profiles?.full_name || "Unknown"}</span><span className="text-xs text-muted-foreground">{format(new Date(msg.created_at), "HH:mm")}</span></div><p className="text-sm text-muted-foreground">{msg.content}</p></div>
-                    </div>
-                  ))}
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
+                  {messages.length === 0 && <div className="text-center text-muted-foreground mt-10">No messages yet.</div>}
+                  {messages.map((msg) => {
+                    const isMe = msg.sender_id === user?.id;
+                    return (
+                        <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+                            <Avatar className="h-8 w-8 border">
+                                <AvatarFallback className={isMe ? "bg-primary text-primary-foreground" : ""}>
+                                    {msg.profiles?.full_name?.[0] || "?"}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className={`max-w-[70%] rounded-lg p-3 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-white border shadow-sm"}`}>
+                                {!isMe && <p className="text-[10px] opacity-70 mb-1 font-bold">{msg.profiles?.full_name}</p>}
+                                <p>{msg.content}</p>
+                                <p className={`text-[10px] mt-1 text-right ${isMe ? "opacity-70" : "text-muted-foreground"}`}>
+                                    {format(new Date(msg.created_at), "HH:mm")}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                  })}
                 </div>
-                <div className="flex gap-2"><Input placeholder="Type message..." value={messageInput} onChange={(e) => setMessageInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} /><Button size="icon" onClick={handleSendMessage}><Send className="h-4 w-4" /></Button></div>
+                <div className="p-4 bg-white border-t flex gap-2"><Input placeholder="Type message..." value={messageInput} onChange={(e) => setMessageInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} /><Button size="icon" onClick={handleSendMessage} disabled={!messageInput.trim()}><Send className="h-4 w-4" /></Button></div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -265,7 +345,7 @@ export default function StudentDashboard() {
         </Tabs>
       </div>
       <AlertDialog open={leaveGroupOpen} onOpenChange={setLeaveGroupOpen}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Leave Group?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction>Confirm</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Leave Group?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveGroup}>Confirm</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </DashboardLayout>
   );
