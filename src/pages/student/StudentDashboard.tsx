@@ -5,76 +5,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, FileText, Send, Upload, AlertCircle, Loader2, CheckCircle, Users, ArrowRight } from "lucide-react";
+import { Calendar, Clock, Send, Upload, AlertCircle, Loader2, CheckCircle, Users, ArrowRight } from "lucide-react";
 import { format, isPast } from "date-fns";
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner"; 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend } from "chart.js";
 import { Doughnut, Bar } from "react-chartjs-2";
 import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { JoinGroupModal } from "@/components/JoinGroupModal";
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend);
 
-// --- Types ---
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  due_date: string;
-  status: string;
-  created_by: string; 
-  group_id: string;
-}
-
-interface Submission {
-  id: string;
-  task_id: string;
-  student_id: string;
-  file_name: string;
-  file_url: string;
-  submitted_at: string;
-  grade?: number;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  sender_id: string;
-  created_at: string;
-  profiles?: { full_name: string };
-}
-
-interface Group {
-  id: string;
-  name: string;
-  semester: string;
-  description: string;
-}
+interface Task { id: string; title: string; description: string; due_date: string; status: string; created_by: string; group_id: string; }
+interface Submission { id: string; task_id: string; student_id: string; file_name: string; file_url: string; submitted_at: string; grade?: number; }
+interface Message { id: string; content: string; sender_id: string; created_at: string; profiles?: { full_name: string }; }
+interface Group { id: string; name: string; semester: string; description: string; }
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // UI State
   const [messageInput, setMessageInput] = useState("");
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Data State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -87,11 +49,11 @@ export default function StudentDashboard() {
       if (!user || !user.email) return;
 
       try {
-        // 1. Find My Group ID
+        // 1. Find My Group
         const { data: memberData } = await supabase
             .from('group_members')
             .select('group_id, groups(*)')
-            .eq('student_email', user.email)
+            .ilike('student_email', user.email)
             .maybeSingle();
         
         // @ts-ignore
@@ -99,7 +61,7 @@ export default function StudentDashboard() {
         // @ts-ignore
         if (memberData?.groups) setMyGroup(memberData.groups);
 
-        // 2. Fetch Tasks (ONLY for my group)
+        // 2. Fetch Tasks
         let tasksData: any[] = [];
         if (myGroupId) {
             const { data } = await supabase
@@ -111,16 +73,10 @@ export default function StudentDashboard() {
         }
 
         // 3. Fetch Submissions
-        const { data: subsData } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('student_id', user.id);
+        const { data: subsData } = await supabase.from('submissions').select('*').eq('student_id', user.id);
 
-        // 4. Fetch Chat Messages
-        const { data: msgData } = await supabase
-          .from('messages')
-          .select('*, profiles(full_name)')
-          .order('created_at', { ascending: true });
+        // 4. Fetch Chat
+        const { data: msgData } = await supabase.from('messages').select('*, profiles(full_name)').order('created_at', { ascending: true });
           
         // 5. Fetch Mentor Name
         if (tasksData.length > 0 && tasksData[0].created_by) {
@@ -140,7 +96,6 @@ export default function StudentDashboard() {
 
     fetchData();
 
-    // Real-time chat listener
     const msgSubscription = supabase.channel('public:messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
          const { data } = await supabase.from('messages').select('*, profiles(full_name)').eq('id', payload.new.id).single();
@@ -150,7 +105,6 @@ export default function StudentDashboard() {
     return () => { supabase.removeChannel(msgSubscription); };
   }, [user]);
 
-  // --- HANDLERS ---
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
   const handleFileUpload = async (taskId: string, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,44 +134,21 @@ export default function StudentDashboard() {
   const handleLeaveGroup = async () => {
     if(!user?.email) return;
     await supabase.from('group_members').delete().eq('student_email', user.email);
-    window.location.reload(); // Refresh to reset state
+    window.location.reload();
   };
 
-  // --- FIXED CALCULATIONS (SOLVES THE -8 ISSUE) ---
+  // Calculations
   const upcomingTasks = tasks.filter((t) => t.status !== "done" && new Date(t.due_date) > new Date()).slice(0, 3);
   
-  // 1. Get IDs of tasks assigned to this group
   const groupTaskIds = new Set(tasks.map(t => t.id));
-
-  // 2. Filter submissions to only count those relevant to current tasks
-  const completedTaskIds = new Set(
-    submissions
-      .filter(s => groupTaskIds.has(s.task_id))
-      .map(s => s.task_id)
-  );
+  const completedTaskIds = new Set(submissions.filter(s => groupTaskIds.has(s.task_id)).map(s => s.task_id));
   
   const completedCount = completedTaskIds.size;
   const pendingTasksCount = tasks.length - completedCount;
-  
   const progressPercentage = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
   
-  const progressData = { 
-    labels: ["Completed", "Pending"], 
-    datasets: [{ 
-      data: [progressPercentage, 100 - progressPercentage], 
-      backgroundColor: ["#10b981", "#f59e0b"], 
-      borderWidth: 0 
-    }] 
-  };
-  
-  const taskStatusData = { 
-    labels: ["To Do", "Submitted"], 
-    datasets: [{ 
-      label: "Tasks", 
-      data: [pendingTasksCount, completedCount], 
-      backgroundColor: ["#f59e0b", "#10b981"] 
-    }] 
-  };
+  const progressData = { labels: ["Completed", "Pending"], datasets: [{ data: [progressPercentage, 100 - progressPercentage], backgroundColor: ["#10b981", "#f59e0b"], borderWidth: 0 }] };
+  const taskStatusData = { labels: ["To Do", "Submitted"], datasets: [{ label: "Tasks", data: [pendingTasksCount, completedCount], backgroundColor: ["#f59e0b", "#10b981"] }] };
 
   if (loading) return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -226,10 +157,14 @@ export default function StudentDashboard() {
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div><h1 className="text-3xl font-bold text-foreground">Dashboard</h1><p className="text-muted-foreground">Track your projects and deadlines</p></div>
-          {myGroup && <Button variant="destructive" size="sm" onClick={() => setLeaveGroupOpen(true)}>Leave Group</Button>}
+          <div className="flex gap-2">
+             {!myGroup && <Button onClick={() => setJoinModalOpen(true)}>Join Group</Button>}
+             {myGroup && <Button variant="destructive" size="sm" onClick={() => setLeaveGroupOpen(true)}>Leave Group</Button>}
+          </div>
         </div>
 
-        {/* GROUP INFO */}
+        <JoinGroupModal open={joinModalOpen} onOpenChange={setJoinModalOpen} onSuccess={() => window.location.reload()} />
+
         {myGroup ? (
             <Card className="bg-primary/5 border-primary/20">
                 <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-lg"><Users className="h-5 w-5 text-primary" />{myGroup.name}</CardTitle></CardHeader>
@@ -240,7 +175,7 @@ export default function StudentDashboard() {
                 <CardContent className="flex flex-col items-center justify-center py-8 text-center">
                     <Users className="h-10 w-10 text-muted-foreground mb-3 opacity-50" />
                     <h3 className="font-semibold text-lg">No Group Assigned</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm mt-1">You haven't been added to a group yet. Ask your mentor to add you via email.</p>
+                    <p className="text-sm text-muted-foreground max-w-sm mt-1">You haven't been added to a group yet. Ask your mentor via email or use a Join Code.</p>
                 </CardContent>
             </Card>
         )}
@@ -265,7 +200,6 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* TASKS LIST - ONLY SHOW IF IN GROUP */}
         {myGroup && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-4">Tasks Assigned</h2>
@@ -301,12 +235,19 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* CHARTS */}
         <Card><CardHeader><CardTitle>Your Project Progress</CardTitle></CardHeader><CardContent><div className="grid gap-6 md:grid-cols-2"><div className="h-64 flex justify-center"><Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} /></div><div className="h-64 flex justify-center"><Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} /></div></div></CardContent></Card>
         
-        {/* CHAT */}
-         <Tabs defaultValue="chat" className="space-y-4">
-          <TabsList><TabsTrigger value="chat">Group Chat</TabsTrigger><TabsTrigger value="submissions">History</TabsTrigger></TabsList>
+         <Tabs defaultValue="kanban" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="kanban">Kanban Board</TabsTrigger>
+            <TabsTrigger value="chat">Group Chat</TabsTrigger>
+            <TabsTrigger value="submissions">History</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="kanban">
+            {myGroup ? <KanbanBoard groupId={myGroup.id} /> : <div className="p-10 text-center text-muted-foreground">Join a group to see the board.</div>}
+          </TabsContent>
+
           <TabsContent value="chat">
             <Card className="h-[500px] flex flex-col">
               <CardHeader><CardTitle>Group Chat</CardTitle></CardHeader>

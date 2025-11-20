@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { AuthLayout } from "@/components/layout/AuthLayout"; // <--- Import the layout
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ const Login = () => {
     try {
       await login(email, password);
       toast.success("Logged in successfully");
-      navigate("/student/dashboard"); // Protected routes will redirect if role is different
+      navigate("/student/dashboard");
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Invalid email or password");
@@ -32,12 +33,12 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
-          <CardDescription className="text-center">
-            Sign in to your account
+    <AuthLayout>
+      <Card className="w-full shadow-lg border-muted/40">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardDescription>
+            Sign in to your account to continue tracking
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -51,12 +52,16 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="bg-background/50"
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                <Link 
+                  to="/forgot-password"
+                  className="text-sm text-primary hover:underline font-medium"
+                >
                   Forgot password?
                 </Link>
               </div>
@@ -66,23 +71,24 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="bg-background/50"
               />
             </div>
-            <Button className="w-full" type="submit" disabled={loading}>
+            <Button className="w-full font-semibold" type="submit" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex justify-center border-t pt-6 bg-muted/5">
           <div className="text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/register" className="text-primary hover:underline">
+            <Link to="/register" className="text-primary hover:underline font-semibold">
               Sign up
             </Link>
           </div>
         </CardFooter>
       </Card>
-    </div>
+    </AuthLayout>
   );
 };
 
