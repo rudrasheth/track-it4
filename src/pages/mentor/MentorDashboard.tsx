@@ -170,7 +170,7 @@ export default function MentorDashboard() {
                         {sub.grade ? (
                             <div className="flex items-center gap-2 cursor-pointer hover:opacity-80" onClick={() => openGradeModal(sub)}>
                                 <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100">
-                                    {sub.grade}/100
+                                  {sub.grade}/25
                                 </Badge>
                                 {sub.feedback && <MessageSquare className="h-4 w-4 text-muted-foreground" />}
                             </div>
@@ -199,8 +199,8 @@ export default function MentorDashboard() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="grade" className="text-right">Grade (0-100)</Label>
-                        <Input id="grade" type="number" max={100} value={gradeInput} onChange={(e) => setGradeInput(e.target.value)} className="col-span-3" />
+                        <Label htmlFor="grade" className="text-right">Grade (0-25)</Label>
+                        <Input id="grade" type="number" max={25} value={gradeInput} onChange={(e) => setGradeInput(e.target.value)} className="col-span-3" />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="feedback" className="text-right">Feedback</Label>

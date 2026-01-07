@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { supabase } from "@/supabaseClient";
+import { supabase, supabaseUrl, supabaseKey } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { 
@@ -22,6 +22,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+
+const generateJoinCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 interface CreateGroupModalProps {
   open: boolean;
@@ -73,13 +75,16 @@ export function CreateGroupModal({ open, onOpenChange, onSuccess }: CreateGroupM
       // -----------------------------------
 
       // 2. Create Group
+      const joinCode = generateJoinCode();
+
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
         .insert({
           name: groupName,
           semester: semester,
           description: description,
-          created_by: user?.id
+          created_by: user?.id,
+          join_code: joinCode
         })
         .select()
         .single();
@@ -98,6 +103,40 @@ export function CreateGroupModal({ open, onOpenChange, onSuccess }: CreateGroupM
           .insert(membersData);
 
         if (memberError) throw memberError;
+
+        // Best-effort: email join code to the first email (treated as leader)
+        const leaderEmail = emails[0];
+        if (leaderEmail) {
+          try {
+            const functionUrl = `${supabaseUrl}/functions/v1/send-join-code`;
+            const response = await fetch(functionUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`
+              },
+              body: JSON.stringify({ email: leaderEmail, joinCode, groupName })
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Email send error:', errorText);
+              toast.error(`Group created but email failed: ${errorText}`);
+            } else {
+              const result = await response.json();
+              if (result?.error) {
+                console.error('Email function returned error:', result.error);
+                toast.error(`Group created but email failed: ${result.error}`);
+              } else {
+                console.log('Email sent successfully to:', leaderEmail);
+                toast.success(`Join code emailed to ${leaderEmail}`);
+              }
+            }
+          } catch (err: any) {
+            console.error('send-join-code exception:', err);
+            toast.message(`Group created; join code not emailed: ${err?.message || 'Network error'}`);
+          }
+        }
       }
 
       toast.success("Group created successfully!");

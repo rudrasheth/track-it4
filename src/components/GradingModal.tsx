@@ -26,10 +26,10 @@ export function GradingModal({ open, onOpenChange, submission, taskTitle, onGrad
   const handleSave = () => {
     const gradeNum = parseInt(grade);
     
-    if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
+    if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 25) {
       toast({
         title: "Invalid Grade",
-        description: "Please enter a grade between 0 and 100",
+        description: "Please enter a grade between 0 and 25",
         variant: "destructive",
       });
       return;
@@ -44,7 +44,7 @@ export function GradingModal({ open, onOpenChange, submission, taskTitle, onGrad
 
     toast({
       title: "Grade Saved",
-      description: `Grade ${gradeNum}/100 saved for ${submission.studentName || "student"}`,
+      description: `Grade ${gradeNum}/25 saved for ${submission.studentName || "student"}`,
     });
 
     onOpenChange(false);
@@ -98,13 +98,13 @@ export function GradingModal({ open, onOpenChange, submission, taskTitle, onGrad
 
             {/* Grade Input */}
             <div className="space-y-2">
-              <Label htmlFor="grade">Grade (0-100)</Label>
+              <Label htmlFor="grade">Grade (0-25)</Label>
               <Input
                 id="grade"
                 type="number"
                 min="0"
-                max="100"
-                placeholder="Enter grade out of 100"
+                max="25"
+                placeholder="Enter grade out of 25"
                 value={grade}
                 onChange={(e) => setGrade(e.target.value)}
               />

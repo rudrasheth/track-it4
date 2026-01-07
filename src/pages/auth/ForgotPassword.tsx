@@ -18,8 +18,10 @@ const ForgotPassword = () => {
     try {
       // This sends a real email to the user with a password reset link
       // We redirect them to a page where they can type the new password
+      const redirectTo = `${window.location.origin}/update-password`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "http://localhost:8080/update-password",
+        redirectTo,
       });
 
       if (error) throw error;

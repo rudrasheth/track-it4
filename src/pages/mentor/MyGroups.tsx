@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Users, Trash2, UserPlus, Loader2, ArrowUpCircle, Copy } from "lucide-react";
+import { Plus, Users, Trash2, UserPlus, Loader2, ArrowUpCircle, Copy, Upload, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,11 +13,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
-import { supabase } from "@/supabaseClient";
+import { supabase, supabaseUrl, supabaseKey } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { CreateGroupModal } from "@/components/CreateGroupModal";
+import * as XLSX from "xlsx";
+import { useRef } from "react";
+
+const generateJoinCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 interface Group {
   id: string;
@@ -38,6 +42,15 @@ export default function MyGroups() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [newMemberEmails, setNewMemberEmails] = useState("");
   const [addingMember, setAddingMember] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSummary, setUploadSummary] = useState<{
+    success: number;
+    failed: { row: number; reason: string; group?: string }[];
+    emailSent: string[];
+    emailFailed: { email: string; reason: string }[];
+  } | null>(null);
 
   useEffect(() => {
     fetchGroups();
@@ -134,13 +147,249 @@ export default function MyGroups() {
     toast.success("Code copied!");
   };
 
+  const handleDownloadTemplate = () => {
+    const template = [
+      {
+        group_name: "AI Project Team",
+        semester: "Sem 5",
+        leader_email: "leader1@college.ac.in",
+        description: "Optional description"
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Groups");
+    XLSX.writeFile(wb, "group-upload-template.xlsx");
+  };
+
+  const handleDownloadSample = () => {
+    const template = [
+      {
+        group_name: "Sample Team",
+        semester: "Sem 5",
+        leader_email: "stockmaster577@gmail.com",
+        description: "Sample row to test email delivery"
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Groups");
+    XLSX.writeFile(wb, "group-upload-sample.xlsx");
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadSummary(null);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      if (rows.length === 0) {
+        toast.error("The uploaded sheet is empty.");
+        setUploading(false);
+        return;
+      }
+
+      const results: {
+        success: number;
+        failed: { row: number; reason: string; group?: string }[];
+        emailSent: string[];
+        emailFailed: { email: string; reason: string }[];
+      } = { success: 0, failed: [], emailSent: [], emailFailed: [] };
+
+      for (let idx = 0; idx < rows.length; idx++) {
+        const row = rows[idx];
+        const rowNumber = idx + 2; // considering header row
+
+        const groupName = (row.group_name || "").toString().trim();
+        const semester = (row.semester || "").toString().trim();
+        const description = (row.description || "").toString().trim();
+
+        const leader = (row.leader_email || "").toString().trim().toLowerCase();
+
+        if (!groupName || !semester || !leader) {
+          results.failed.push({ row: rowNumber, reason: "Missing group_name, semester, or leader_email" });
+          continue;
+        }
+
+        const uniqueEmails = [leader];
+
+        // Check registration
+        const { data: existingUsers, error: checkError } = await supabase
+          .from('profiles')
+          .select('email')
+          .in('email', uniqueEmails);
+
+        if (checkError) {
+          results.failed.push({ row: rowNumber, reason: "Lookup failed" });
+          continue;
+        }
+
+        const found = existingUsers?.map(u => u.email) || [];
+        const missing = uniqueEmails.filter(e => !found.includes(e));
+        if (missing.length > 0) {
+          results.failed.push({ row: rowNumber, reason: `Not registered: ${missing.join(', ')}`, group: groupName });
+          continue;
+        }
+
+        // Create group
+        const joinCode = generateJoinCode();
+
+        const { data: groupData, error: groupError } = await supabase
+          .from('groups')
+          .insert({
+            name: groupName,
+            semester,
+            description,
+            created_by: user?.id,
+            join_code: joinCode
+          })
+          .select()
+          .single();
+
+        if (groupError || !groupData) {
+          results.failed.push({ row: rowNumber, reason: "Failed to create group", group: groupName });
+          continue;
+        }
+
+        // Add members (leader + others)
+        const membersData = uniqueEmails.map(email => ({ group_id: groupData.id, student_email: email }));
+        const { error: memberError } = await supabase.from('group_members').insert(membersData);
+
+        if (memberError) {
+          results.failed.push({ row: rowNumber, reason: "Failed to add members", group: groupName });
+          continue;
+        }
+
+        // Best-effort: email join code to the leader
+        try {
+          const functionUrl = `${supabaseUrl}/functions/v1/send-join-code`;
+          const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({ email: leader, joinCode, groupName })
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Email send error:', errorText);
+            results.emailFailed.push({ email: leader, reason: `HTTP ${response.status}: ${errorText}` });
+          } else {
+            const result = await response.json();
+            if (result?.error) {
+              console.error('Email function returned error:', result.error);
+              results.emailFailed.push({ email: leader, reason: result.error });
+            } else {
+              console.log('Email sent successfully to:', leader);
+              results.emailSent.push(leader);
+            }
+          }
+        } catch (err: any) {
+          console.error('send-join-code exception:', err);
+          results.emailFailed.push({ email: leader, reason: err?.message || "Network error" });
+        }
+
+        results.success += 1;
+      }
+
+      setUploadSummary(results);
+
+      if (results.success > 0) {
+        fetchGroups();
+        toast.success(`Uploaded ${results.success} group(s)`);
+      }
+
+      if (results.failed.length > 0) {
+        toast.error(`${results.failed.length} row(s) had issues`);
+      }
+
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to process file");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div><h1 className="text-3xl font-bold">My Groups</h1><p className="text-muted-foreground">Manage your student project groups</p></div>
-          <Button onClick={() => setIsCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> Create Group</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownloadTemplate}>
+              <Download className="mr-2 h-4 w-4" /> Template
+            </Button>
+            <Button variant="outline" onClick={handleDownloadSample}>
+              <Download className="mr-2 h-4 w-4" /> Sample (test)
+            </Button>
+            <Button variant="outline" onClick={handleUploadClick} disabled={uploading}>
+              {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              Upload Excel
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleUploadFile}
+            />
+            <Button onClick={() => setIsCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> Create Group</Button>
+          </div>
         </div>
+
+        {uploadSummary && (
+          <Card className="border-dashed">
+            <CardHeader><CardTitle>Upload Summary</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex flex-wrap gap-3">
+                <Badge variant="secondary">Success: {uploadSummary.success}</Badge>
+                <Badge variant="outline" className={uploadSummary.failed.length ? "text-destructive border-destructive" : ""}>
+                  Failed: {uploadSummary.failed.length}
+                </Badge>
+                <Badge variant="outline">Emails sent: {uploadSummary.emailSent.length}</Badge>
+                <Badge variant="outline" className={uploadSummary.emailFailed.length ? "text-destructive border-destructive" : ""}>
+                  Email failed: {uploadSummary.emailFailed.length}
+                </Badge>
+              </div>
+              {uploadSummary.failed.length > 0 && (
+                <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                  {uploadSummary.failed.map((f, idx) => (
+                    <li key={`${f.row}-${idx}`}>
+                      Row {f.row}{f.group ? ` (${f.group})` : ""}: {f.reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {uploadSummary.emailFailed.length > 0 && (
+                <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                  {uploadSummary.emailFailed.map((f, idx) => (
+                    <li key={`${f.email}-${idx}`}>Email to {f.email}: {f.reason}</li>
+                  ))}
+                </ul>
+              )}
+              {uploadSummary.emailSent.length > 0 && (
+                <p className="text-sm text-muted-foreground">Emails sent to: {uploadSummary.emailSent.join(', ')}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <CreateGroupModal open={isCreateOpen} onOpenChange={setIsCreateOpen} onSuccess={fetchGroups} />
 

@@ -87,7 +87,7 @@ export function SubmissionsView({ groupId }: SubmissionsViewProps) {
                           <div className="flex items-center gap-2">
                             <Award className="h-4 w-4 text-green-500" />
                             <Badge className="bg-green-500/10 text-green-500">
-                              Graded: {submission.grade}/100
+                              Graded: {submission.grade}/25
                             </Badge>
                           </div>
                           {submission.feedback && (

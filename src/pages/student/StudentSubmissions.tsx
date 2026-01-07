@@ -82,7 +82,7 @@ export default function StudentSubmissions() {
                       <TableCell>
                         {sub.grade ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
-                            {sub.grade}/100
+                            {sub.grade}/25
                           </Badge>
                         ) : (
                           <Badge variant="outline">Pending</Badge>

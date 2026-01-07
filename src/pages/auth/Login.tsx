@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { AuthLayout } from "@/components/layout/AuthLayout"; // <--- Import the layout
 
 const Login = () => {
-  const [email, setEmail] = useState("");
+  const [sapId, setSapId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   
@@ -21,12 +21,12 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      await login(sapId, password);
       toast.success("Logged in successfully");
       navigate("/student/dashboard");
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || "Invalid email or password");
+      toast.error(error.message || "Invalid SAP ID or password");
     } finally {
       setLoading(false);
     }
@@ -44,13 +44,12 @@ const Login = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="sapId">SAP ID</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="sapId"
+                placeholder="Enter SAP ID"
+                value={sapId}
+                onChange={(e) => setSapId(e.target.value)}
                 required
                 className="bg-background/50"
               />

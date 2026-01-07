@@ -12,6 +12,7 @@ const Register = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [sapId, setSapId] = useState("");
   const [role, setRole] = useState<string>("student");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +22,9 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Sign up with Supabase and save the role in metadata
+      if (!sapId.trim()) throw new Error("SAP ID is required");
+
+      // Sign up with Supabase and save the role + sap_id in metadata
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -29,11 +32,27 @@ const Register = () => {
           data: {
             full_name: fullName,
             role: role, // This saves the role to the user's account
+            sap_id: sapId.trim(),
           },
         },
       });
 
       if (error) throw error;
+
+      // Upsert into profiles with SAP ID as unique business key
+      if (data?.user?.id) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            email,
+            full_name: fullName,
+            role,
+            sap_id: sapId.trim(),
+          });
+
+        if (profileError) throw profileError;
+      }
 
       toast.success("Account created successfully! Please log in.");
       navigate("/login");
@@ -64,6 +83,16 @@ const Register = () => {
                 placeholder="John Doe"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sapId">SAP ID</Label>
+              <Input
+                id="sapId"
+                placeholder="Enter SAP ID"
+                value={sapId}
+                onChange={(e) => setSapId(e.target.value)}
                 required
               />
             </div>
