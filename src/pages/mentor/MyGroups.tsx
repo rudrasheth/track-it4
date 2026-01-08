@@ -83,34 +83,45 @@ export default function MyGroups() {
   const handleAddMember = async () => {
     if (!selectedGroupId || !newMemberEmails) return;
     setAddingMember(true);
-    
     try {
       const emails = newMemberEmails.split(',').map(e => e.trim().toLowerCase()).filter(e => e.length > 0);
       if (emails.length === 0) { setAddingMember(false); return; }
 
-      // 1. Check Registration
+      // Ensure users exist (optional guard)
       const { data: existingUsers, error: checkError } = await supabase.from('profiles').select('email').in('email', emails);
       if (checkError) throw checkError;
       const foundEmails = existingUsers?.map(u => u.email) || [];
       const missingEmails = emails.filter(e => !foundEmails.includes(e));
       if (missingEmails.length > 0) { toast.error(`Not registered: ${missingEmails.join(', ')}`); setAddingMember(false); return; }
 
-      // 2. Check Busy
-      const { data: busyStudents, error: busyError } = await supabase.from('group_members').select('student_email').in('student_email', emails);
-      if (busyError) throw busyError;
-      if (busyStudents && busyStudents.length > 0) { toast.error(`Already in a group: ${busyStudents.map(s => s.student_email).join(', ')}`); setAddingMember(false); return; }
+      // Fetch join code for this group
+      const { data: grp, error: grpErr } = await supabase.from('groups').select('name, join_code').eq('id', selectedGroupId).single();
+      if (grpErr || !grp?.join_code) { toast.error('Join code not found for group'); setAddingMember(false); return; }
 
-      // 3. Add
-      const membersData = emails.map(email => ({ group_id: selectedGroupId, student_email: email }));
-      const { error } = await supabase.from('group_members').insert(membersData);
-      if (error) throw error;
+      // Send join code emails instead of adding directly
+      const functionUrl = `${supabaseUrl}/functions/v1/send-join-code`;
+      const sent: string[] = [];
+      const failed: string[] = [];
+      for (const email of emails) {
+        try {
+          const resp = await fetch(functionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+            body: JSON.stringify({ email, joinCode: grp.join_code, groupName: grp.name })
+          });
+          if (resp.ok) sent.push(email); else failed.push(email);
+        } catch {
+          failed.push(email);
+        }
+      }
 
-      toast.success("Students added!");
+      if (sent.length) toast.success(`Invites sent to: ${sent.join(', ')}`);
+      if (failed.length) toast.error(`Failed to invite: ${failed.join(', ')}`);
+
       setIsAddMemberOpen(false);
-      setNewMemberEmails("");
-      fetchGroups();
+      setNewMemberEmails('');
     } catch (error) {
-      toast.error("Failed to add students");
+      toast.error('Failed to invite students');
     } finally {
       setAddingMember(false);
     }
@@ -161,22 +172,6 @@ export default function MyGroups() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Groups");
     XLSX.writeFile(wb, "group-upload-template.xlsx");
-  };
-
-  const handleDownloadSample = () => {
-    const template = [
-      {
-        group_name: "Sample Team",
-        semester: "Sem 5",
-        leader_email: "stockmaster577@gmail.com",
-        description: "Sample row to test email delivery"
-      }
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Groups");
-    XLSX.writeFile(wb, "group-upload-sample.xlsx");
   };
 
   const handleUploadClick = () => {
@@ -264,14 +259,7 @@ export default function MyGroups() {
           continue;
         }
 
-        // Add members (leader + others)
-        const membersData = uniqueEmails.map(email => ({ group_id: groupData.id, student_email: email }));
-        const { error: memberError } = await supabase.from('group_members').insert(membersData);
-
-        if (memberError) {
-          results.failed.push({ row: rowNumber, reason: "Failed to add members", group: groupName });
-          continue;
-        }
+        // Do NOT auto-add members; require join code
 
         // Best-effort: email join code to the leader
         try {
@@ -335,9 +323,6 @@ export default function MyGroups() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleDownloadTemplate}>
               <Download className="mr-2 h-4 w-4" /> Template
-            </Button>
-            <Button variant="outline" onClick={handleDownloadSample}>
-              <Download className="mr-2 h-4 w-4" /> Sample (test)
             </Button>
             <Button variant="outline" onClick={handleUploadClick} disabled={uploading}>
               {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
@@ -428,7 +413,7 @@ export default function MyGroups() {
 
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground"><Users className="h-4 w-4" /> <span>{group.members_count} Students</span></div>
-                      <Button variant="outline" size="sm" onClick={() => { setSelectedGroupId(group.id); setIsAddMemberOpen(true); }}><UserPlus className="h-4 w-4 mr-2" /> Add Member</Button>
+                      <Button variant="outline" size="sm" onClick={() => { setSelectedGroupId(group.id); setIsAddMemberOpen(true); }}><UserPlus className="h-4 w-4 mr-2" /> Invite</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -439,9 +424,9 @@ export default function MyGroups() {
 
         <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
             <DialogContent>
-                <DialogHeader><DialogTitle>Add Students</DialogTitle><DialogDescription>Enter email addresses.</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Invite Students</DialogTitle><DialogDescription>Enter email addresses; they’ll receive the join code.</DialogDescription></DialogHeader>
                 <div className="py-4"><Label>Student Emails</Label><Textarea placeholder="student1@mail.com" value={newMemberEmails} onChange={(e) => setNewMemberEmails(e.target.value)} /></div>
-                <DialogFooter><Button onClick={handleAddMember} disabled={addingMember}>{addingMember ? <Loader2 className="animate-spin" /> : "Add Students"}</Button></DialogFooter>
+            <DialogFooter><Button onClick={handleAddMember} disabled={addingMember}>{addingMember ? <Loader2 className="animate-spin" /> : "Send Invites"}</Button></DialogFooter>
             </DialogContent>
         </Dialog>
       </div>

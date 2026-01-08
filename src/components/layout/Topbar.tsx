@@ -1,6 +1,5 @@
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserNav } from "@/components/layout/UserNav";
-import { ModeToggle } from "@/components/mode-toggle"; // <--- Import this
 
 export function Topbar() {
   return (
@@ -10,7 +9,6 @@ export function Topbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-4">
-        <ModeToggle /> {/* <--- Add the button here */}
         <NotificationBell />
         <UserNav /> 
       </div>
