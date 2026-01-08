@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { CreateGroupModal } from "@/components/CreateGroupModal";
 import { JoinGroupModal } from "@/components/JoinGroupModal";
+import { SidebarGeminiBot } from "@/components/SidebarGeminiBot";
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +18,7 @@ import {
   Plus,
   Send,
   UserPlus,
+  Sparkles,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -28,6 +30,7 @@ export function Sidebar() {
     { to: "/student/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/student/tasks", icon: ClipboardList, label: "Tasks" },
     { to: "/student/submissions", icon: FileText, label: "Submissions" },
+    { to: "/student/ai-assistant", icon: Sparkles, label: "AI Assistant" },
   ];
 
   const mentorLinks = [

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Send, Upload, AlertCircle, Loader2, CheckCircle, Users, ArrowRight } from "lucide-react";
+import { Calendar, Clock, Upload, Send, AlertCircle, Loader2, CheckCircle, Users, ArrowRight } from "lucide-react";
 import { format, isPast } from "date-fns";
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, RadialLinea
 
 interface Task { id: string; title: string; description: string; due_date: string; status: string; created_by: string; group_id: string; }
 interface Submission { id: string; task_id: string; student_id: string; file_name: string; file_url: string; submitted_at: string; grade?: number; }
-interface Message { id: string; content: string; sender_id: string; created_at: string; profiles?: { full_name: string }; }
+interface Message { id: string; content: string; sender_id: string; created_at: string; group_id: string; profiles?: { full_name: string }; }
 interface Group { id: string; name: string; semester: string; description: string; }
 
 export default function StudentDashboard() {
@@ -75,10 +75,7 @@ export default function StudentDashboard() {
         // 3. Fetch Submissions
         const { data: subsData } = await supabase.from('submissions').select('*').eq('student_id', user.id);
 
-        // 4. Fetch Chat
-        const { data: msgData } = await supabase.from('messages').select('*, profiles(full_name)').order('created_at', { ascending: true });
-          
-        // 5. Fetch Mentor Name
+        // 4. Fetch Mentor Name
         if (tasksData.length > 0 && tasksData[0].created_by) {
            const { data: mentorData } = await supabase.from('profiles').select('full_name').eq('id', tasksData[0].created_by).single();
            if (mentorData) setMentorName(mentorData.full_name);
@@ -86,7 +83,6 @@ export default function StudentDashboard() {
 
         setTasks(tasksData);
         setSubmissions(subsData || []);
-        setMessages(msgData || []);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -95,15 +91,41 @@ export default function StudentDashboard() {
     };
 
     fetchData();
-
-    const msgSubscription = supabase.channel('public:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
-         const { data } = await supabase.from('messages').select('*, profiles(full_name)').eq('id', payload.new.id).single();
-         if (data) setMessages(prev => [...prev, data]);
-      }).subscribe();
-
-    return () => { supabase.removeChannel(msgSubscription); };
   }, [user]);
+
+  useEffect(() => {
+    if (!myGroup?.id) {
+      setMessages([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadMessages = async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('*, profiles(full_name)')
+        .eq('group_id', myGroup.id)
+        .order('created_at', { ascending: true });
+
+      if (active) setMessages(data || []);
+    };
+
+    loadMessages();
+
+    const channel = supabase
+      .channel(`public:messages:group:${myGroup.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `group_id=eq.${myGroup.id}` }, async (payload) => {
+        const { data } = await supabase.from('messages').select('*, profiles(full_name)').eq('id', payload.new.id).single();
+        if (data) setMessages(prev => [...prev, data]);
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [myGroup?.id]);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
@@ -125,10 +147,26 @@ export default function StudentDashboard() {
   };
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim() || !user) return;
+    if (!messageInput.trim() || !user || !myGroup?.id) {
+      console.log("Message send blocked:", { hasText: messageInput.trim(), hasUser: !!user, hasGroup: !!myGroup?.id });
+      return;
+    }
     const text = messageInput;
     setMessageInput("");
-    await supabase.from('messages').insert({ content: text, sender_id: user.id });
+    try {
+      const { error } = await supabase.from('messages').insert({ 
+        content: text, 
+        sender_id: user.id, 
+        group_id: myGroup.id 
+      });
+      if (error) {
+        console.error("Error sending message:", error);
+        toast.error("Failed to send message: " + error.message);
+      }
+    } catch (err: any) {
+      console.error("Exception sending message:", err);
+      toast.error("Error sending message");
+    }
   };
 
   const handleLeaveGroup = async () => {
@@ -240,50 +278,57 @@ export default function StudentDashboard() {
          <Tabs defaultValue="kanban" className="space-y-4">
           <TabsList>
             <TabsTrigger value="kanban">Kanban Board</TabsTrigger>
-            <TabsTrigger value="chat">Group Chat</TabsTrigger>
-            <TabsTrigger value="submissions">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="kanban">
             {myGroup ? <KanbanBoard groupId={myGroup.id} /> : <div className="p-10 text-center text-muted-foreground">Join a group to see the board.</div>}
           </TabsContent>
-
-          <TabsContent value="chat">
-            <Card className="h-[500px] flex flex-col">
-              <CardHeader><CardTitle>Group Chat</CardTitle></CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-                  {messages.length === 0 && <div className="text-center text-muted-foreground mt-10">No messages yet.</div>}
-                  {messages.map((msg) => {
-                    const isMe = msg.sender_id === user?.id;
-                    return (
-                        <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
-                            <Avatar className="h-8 w-8 border">
-                                <AvatarFallback className={isMe ? "bg-primary text-primary-foreground" : ""}>
-                                    {msg.profiles?.full_name?.[0] || "?"}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className={`max-w-[70%] rounded-lg p-3 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-white border shadow-sm"}`}>
-                                {!isMe && <p className="text-[10px] opacity-70 mb-1 font-bold">{msg.profiles?.full_name}</p>}
-                                <p>{msg.content}</p>
-                                <p className={`text-[10px] mt-1 text-right ${isMe ? "opacity-70" : "text-muted-foreground"}`}>
-                                    {format(new Date(msg.created_at), "HH:mm")}
-                                </p>
-                            </div>
-                        </div>
-                    );
-                  })}
-                </div>
-                <div className="p-4 bg-white border-t flex gap-2"><Input placeholder="Type message..." value={messageInput} onChange={(e) => setMessageInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} /><Button size="icon" onClick={handleSendMessage} disabled={!messageInput.trim()}><Send className="h-4 w-4" /></Button></div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="submissions">
-            <Card><CardContent><Table><TableHeader><TableRow><TableHead>Task</TableHead><TableHead>File</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
-                  <TableBody>{submissions.map((sub) => { const t = tasks.find(x => x.id === sub.task_id); return (<TableRow key={sub.id}><TableCell>{t?.title}</TableCell><TableCell><a href={sub.file_url} target="_blank" className="text-blue-600 hover:underline">{sub.file_name}</a></TableCell><TableCell>{format(new Date(sub.submitted_at), "MMM dd")}</TableCell></TableRow>)})}</TableBody>
-                </Table></CardContent></Card>
-          </TabsContent>
         </Tabs>
+
+        {/* Group Chat - Below Kanban */}
+        {myGroup && (
+          <Card className="h-[500px] flex flex-col">
+            <CardHeader>
+              <CardTitle>Group Chat</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
+                {messages.length === 0 && <div className="text-center text-muted-foreground mt-10">No messages yet.</div>}
+                {messages.map((msg) => {
+                  const isMe = msg.sender_id === user?.id;
+                  return (
+                    <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+                      <Avatar className="h-8 w-8 border">
+                        <AvatarFallback className={isMe ? "bg-primary text-primary-foreground" : ""}>
+                          {msg.profiles?.full_name?.[0] || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className={`max-w-[70%] rounded-lg p-3 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-white border shadow-sm"}`}>
+                        {!isMe && <p className="text-[10px] opacity-70 mb-1 font-bold">{msg.profiles?.full_name}</p>}
+                        <p>{msg.content}</p>
+                        <p className={`text-[10px] mt-1 text-right ${isMe ? "opacity-70" : "text-muted-foreground"}`}>
+                          {format(new Date(msg.created_at), "HH:mm")}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="p-4 bg-white border-t flex gap-2">
+                <Input
+                  placeholder="Type message..."
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                />
+                <Button size="icon" onClick={handleSendMessage} disabled={!messageInput.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       </div>
       <AlertDialog open={leaveGroupOpen} onOpenChange={setLeaveGroupOpen}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Leave Group?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveGroup}>Confirm</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
