@@ -19,6 +19,7 @@ import {
   Send,
   UserPlus,
   Sparkles,
+  GraduationCap,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -31,6 +32,7 @@ export function Sidebar() {
     { to: "/student/tasks", icon: ClipboardList, label: "Tasks" },
     { to: "/student/submissions", icon: FileText, label: "Submissions" },
     { to: "/student/ai-assistant", icon: Sparkles, label: "AI Assistant" },
+    { to: "/student/virtual-professor", icon: GraduationCap, label: "Virtual Professor" },
   ];
 
   const mentorLinks = [
@@ -53,8 +55,8 @@ export function Sidebar() {
     user?.role === "student"
       ? studentLinks
       : user?.role === "mentor"
-      ? mentorLinks
-      : adminLinks;
+        ? mentorLinks
+        : adminLinks;
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-card">

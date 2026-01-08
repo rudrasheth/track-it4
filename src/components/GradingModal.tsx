@@ -25,11 +25,20 @@ export function GradingModal({ open, onOpenChange, submission, taskTitle, onGrad
 
   const handleSave = () => {
     const gradeNum = parseInt(grade);
-    
+
     if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 25) {
       toast({
         title: "Invalid Grade",
         description: "Please enter a grade between 0 and 25",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!feedback.trim()) {
+      toast({
+        title: "Feedback Required",
+        description: "Please provide feedback for the student submission.",
         variant: "destructive",
       });
       return;
@@ -145,7 +154,7 @@ export function GradingModal({ open, onOpenChange, submission, taskTitle, onGrad
 
             {/* Feedback */}
             <div className="space-y-2">
-              <Label htmlFor="feedback">Feedback</Label>
+              <Label htmlFor="feedback">Feedback <span className="text-red-500">*</span></Label>
               <Textarea
                 id="feedback"
                 placeholder="Great use of color..."

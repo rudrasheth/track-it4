@@ -18,6 +18,7 @@ import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentTasks from "./pages/student/StudentTasks";
 import StudentSubmissions from "./pages/student/StudentSubmissions";
 import AIAssistant from "./pages/student/AIAssistant";
+import VirtualProfessor from "./pages/student/VirtualProfessor";
 
 // Mentor Pages
 import MentorDashboard from "./pages/mentor/MentorDashboard";
@@ -82,6 +83,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={["student"]}>
                     <AIAssistant />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/virtual-professor"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <VirtualProfessor />
                   </ProtectedRoute>
                 }
               />

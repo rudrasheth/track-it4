@@ -60,7 +60,6 @@ export default function StudentSubmissions() {
                   <TableHead>Task Name</TableHead>
                   <TableHead>File Name</TableHead>
                   <TableHead>Submitted On</TableHead>
-                  <TableHead>Grade</TableHead>
                   <TableHead>Feedback</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -68,7 +67,8 @@ export default function StudentSubmissions() {
               <TableBody>
                 {submissions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    {/* Updated colspan to 5 since we removed one column */}
+                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                       <FileText className="h-10 w-10 mx-auto mb-2 opacity-20" />
                       No submissions yet. Go to the Dashboard to upload work.
                     </TableCell>
@@ -79,23 +79,15 @@ export default function StudentSubmissions() {
                       <TableCell className="font-medium">{sub.tasks?.title || "Unknown Task"}</TableCell>
                       <TableCell>{sub.file_name}</TableCell>
                       <TableCell>{format(new Date(sub.submitted_at), "MMM dd, yyyy")}</TableCell>
-                      <TableCell>
-                        {sub.grade ? (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
-                            {sub.grade}/25
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Pending</Badge>
-                        )}
-                      </TableCell>
+                      {/* Grade Column Removed */}
                       <TableCell className="max-w-[200px] truncate" title={sub.feedback}>
                         {sub.feedback || "-"}
                       </TableCell>
                       <TableCell>
-                        <a 
-                          href={sub.file_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <a
+                          href={sub.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="flex items-center text-blue-600 hover:underline"
                         >
                           View <ExternalLink className="h-3 w-3 ml-1" />
