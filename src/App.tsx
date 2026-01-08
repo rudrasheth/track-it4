@@ -25,7 +25,7 @@ import MyGroups from "./pages/mentor/MyGroups";
 import Notices from "./pages/mentor/Notices";
 import AssignTask from "./pages/mentor/AssignTask";
 import Analytics from "./pages/mentor/Analytics";
-import MentorGroupChat from "./pages/mentor/MentorGroupChat";
+
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -127,14 +127,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/mentor/chat"
-                element={
-                  <ProtectedRoute allowedRoles={["mentor"]}>
-                    <MentorGroupChat />
-                  </ProtectedRoute>
-                }
-              />
+
 
               {/* Admin Routes */}
               <Route

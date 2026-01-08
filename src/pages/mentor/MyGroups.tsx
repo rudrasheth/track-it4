@@ -36,7 +36,7 @@ export default function MyGroups() {
   const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -146,10 +146,10 @@ export default function MyGroups() {
     const nextSemStr = `Sem ${currentSemNum + 1}`;
     if (!confirm(`Promote to ${nextSemStr}?`)) return;
     try {
-        const { error } = await supabase.from('groups').update({ semester: nextSemStr }).eq('id', group.id);
-        if (error) throw error;
-        toast.success(`Promoted to ${nextSemStr}!`);
-        fetchGroups();
+      const { error } = await supabase.from('groups').update({ semester: nextSemStr }).eq('id', group.id);
+      if (error) throw error;
+      toast.success(`Promoted to ${nextSemStr}!`);
+      fetchGroups();
     } catch (error) { toast.error("Failed to promote"); }
   };
 
@@ -239,6 +239,20 @@ export default function MyGroups() {
           continue;
         }
 
+        // Check if group name exists
+        const { data: duplicateGroup } = await supabase.from('groups').select('id').eq('name', groupName).maybeSingle();
+        if (duplicateGroup) {
+          results.failed.push({ row: rowNumber, reason: `Group '${groupName}' already exists` });
+          continue;
+        }
+
+        // Check if student is already in a group
+        const { data: existingMember } = await supabase.from('group_members').select('group_id').eq('student_email', leader).maybeSingle();
+        if (existingMember) {
+          results.failed.push({ row: rowNumber, reason: `Student ${leader} is already in a group` });
+          continue;
+        }
+
         // Create group
         const joinCode = generateJoinCode();
 
@@ -272,7 +286,7 @@ export default function MyGroups() {
             },
             body: JSON.stringify({ email: leader, joinCode, groupName })
           });
-          
+
           if (!response.ok) {
             const errorText = await response.text();
             console.error('Email send error:', errorText);
@@ -393,22 +407,22 @@ export default function MyGroups() {
                     <div className="flex justify-between items-start">
                       <CardTitle>{group.name}</CardTitle>
                       <div className="flex gap-1">
-                          {semNum > 0 && semNum < 8 && (
-                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 opacity-0 group-hover:opacity-100" onClick={() => handlePromoteGroup(group)} title="Promote"><ArrowUpCircle className="h-4 w-4" /></Button>
-                          )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => handleDeleteGroup(group.id)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
+                        {semNum > 0 && semNum < 8 && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 opacity-0 group-hover:opacity-100" onClick={() => handlePromoteGroup(group)} title="Promote"><ArrowUpCircle className="h-4 w-4" /></Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100" onClick={() => handleDeleteGroup(group.id)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </div>
                     <Badge variant="secondary" className="w-fit">{group.semester}</Badge>
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{group.description || "No description."}</p>
-                    
+
                     {/* JOIN CODE DISPLAY */}
                     <div className="mb-4 p-2 bg-muted/40 rounded border flex justify-between items-center cursor-pointer hover:bg-muted/60" onClick={() => copyCode(group.join_code || "")} title="Click to Copy">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Join Code</div>
-                        <div className="text-lg font-mono font-bold tracking-widest text-primary">{group.join_code || "------"}</div>
-                        <Copy className="h-4 w-4 text-muted-foreground" />
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Join Code</div>
+                      <div className="text-lg font-mono font-bold tracking-widest text-primary">{group.join_code || "------"}</div>
+                      <Copy className="h-4 w-4 text-muted-foreground" />
                     </div>
 
                     <div className="flex justify-between items-center">
@@ -423,11 +437,11 @@ export default function MyGroups() {
         )}
 
         <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-            <DialogContent>
+          <DialogContent>
             <DialogHeader><DialogTitle>Invite Students</DialogTitle><DialogDescription>Enter email addresses; they’ll receive the join code.</DialogDescription></DialogHeader>
-                <div className="py-4"><Label>Student Emails</Label><Textarea placeholder="student1@mail.com" value={newMemberEmails} onChange={(e) => setNewMemberEmails(e.target.value)} /></div>
+            <div className="py-4"><Label>Student Emails</Label><Textarea placeholder="student1@mail.com" value={newMemberEmails} onChange={(e) => setNewMemberEmails(e.target.value)} /></div>
             <DialogFooter><Button onClick={handleAddMember} disabled={addingMember}>{addingMember ? <Loader2 className="animate-spin" /> : "Send Invites"}</Button></DialogFooter>
-            </DialogContent>
+          </DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>
