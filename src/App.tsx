@@ -15,7 +15,7 @@ import UpdatePassword from "./pages/auth/UpdatePassword";
 
 // Student Pages
 import StudentDashboard from "./pages/student/StudentDashboard";
-import StudentTasks from "./pages/student/StudentTasks";
+
 import StudentSubmissions from "./pages/student/StudentSubmissions";
 import AIAssistant from "./pages/student/AIAssistant";
 import VirtualProfessor from "./pages/student/VirtualProfessor";
@@ -63,15 +63,7 @@ const App = () => (
                 }
               />
               <Route
-                path="/student/tasks"
-                element={
-                  <ProtectedRoute allowedRoles={["student"]}>
-                    <StudentTasks />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/student/submissions"
+                path="/student/submissions/*"
                 element={
                   <ProtectedRoute allowedRoles={["student"]}>
                     <StudentSubmissions />
