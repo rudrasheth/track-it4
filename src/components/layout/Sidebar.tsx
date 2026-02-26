@@ -25,10 +25,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-export function Sidebar() {
+export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
   const { user, logout } = useAuth();
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
-  const [joinGroupOpen, setJoinGroupOpen] = useState(false); const [isCollapsed, setIsCollapsed] = useState(false);
+  const [joinGroupOpen, setJoinGroupOpen] = useState(false);
+  const [localIsCollapsed, setLocalIsCollapsed] = useState(false);
+  const collapsed = isCollapsed !== undefined && setIsCollapsed ? isCollapsed : localIsCollapsed;
+  const setCollapsed = setIsCollapsed || setLocalIsCollapsed;
   const [submissionsOpen, setSubmissionsOpen] = useState(false);
 
   const studentLinks = [
@@ -39,7 +42,7 @@ export function Sidebar() {
       label: "Submissions",
       subLinks: [
         { to: "/student/submissions/completed", label: "Completed" },
-        { to: "/student/submissions/due", label: "Due" },
+        { to: "/student/submissions/pending", label: "Pending" },
         { to: "/student/submissions/upcoming", label: "Upcoming" },
       ]
     },
@@ -71,18 +74,18 @@ export function Sidebar() {
         : adminLinks;
 
   return (
-    <aside className={cn("fixed left-0 top-0 z-40 h-screen border-r border-border bg-card transition-all duration-300", isCollapsed ? "w-20" : "w-64")}>
+    <aside className={cn("fixed left-0 top-0 z-40 h-screen border-r border-border bg-card transition-all duration-300", collapsed ? "w-20" : "w-64")}>
       <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={() => setCollapsed(!collapsed)}
         className="absolute -right-3 top-6 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
       >
-        {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </button>
       <div className="flex h-full flex-col">
         {/* Logo */}
-        <div className={cn("flex h-16 items-center border-b border-border", isCollapsed ? "justify-center px-0" : "px-6")}>
+        <div className={cn("flex h-16 items-center border-b border-border", collapsed ? "justify-center px-0" : "px-6")}>
           <FolderKanban className="h-6 w-6 text-primary flex-shrink-0" />
-          {!isCollapsed && <span className="ml-2 text-xl font-bold text-foreground overflow-hidden whitespace-nowrap">TrackIT</span>}
+          {!collapsed && <span className="ml-2 text-xl font-bold text-foreground overflow-hidden whitespace-nowrap">TrackIT</span>}
         </div>
 
         {/* Navigation */}
@@ -93,12 +96,12 @@ export function Sidebar() {
               className={cn(
                 "flex w-full items-center rounded-lg py-2 text-sm font-medium transition-colors mb-2",
                 "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                isCollapsed ? "justify-center px-0" : "gap-3 px-3"
+                collapsed ? "justify-center px-0" : "gap-3 px-3"
               )}
-              title={isCollapsed ? "Join Group" : undefined}
+              title={collapsed ? "Join Group" : undefined}
             >
               <UserPlus className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && <span>Join Group</span>}
+              {!collapsed && <span>Join Group</span>}
             </button>
           )}
           {user?.role === "mentor" && (
@@ -107,12 +110,12 @@ export function Sidebar() {
               className={cn(
                 "flex w-full items-center rounded-lg py-2 text-sm font-medium transition-colors mb-2",
                 "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                isCollapsed ? "justify-center px-0" : "gap-3 px-3"
+                collapsed ? "justify-center px-0" : "gap-3 px-3"
               )}
-              title={isCollapsed ? "Create Group" : undefined}
+              title={collapsed ? "Create Group" : undefined}
             >
               <Plus className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && <span>Create Group</span>}
+              {!collapsed && <span>Create Group</span>}
             </button>
           )}
           {links.map((link) => {
@@ -122,8 +125,8 @@ export function Sidebar() {
                 <div key={link.label} className="w-full">
                   <button
                     onClick={() => {
-                      if (isCollapsed) {
-                        setIsCollapsed(false);
+                      if (collapsed) {
+                        setCollapsed(false);
                         setSubmissionsOpen(true);
                       } else {
                         setSubmissionsOpen(!submissionsOpen);
@@ -132,19 +135,19 @@ export function Sidebar() {
                     className={cn(
                       "flex w-full items-center justify-between rounded-lg py-2 text-sm font-medium transition-colors",
                       "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                      isCollapsed ? "justify-center px-0" : "px-3"
+                      collapsed ? "justify-center px-0" : "px-3"
                     )}
-                    title={isCollapsed ? link.label : undefined}
+                    title={collapsed ? link.label : undefined}
                   >
-                    <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3")}>
+                    <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}>
                       <link.icon className="h-5 w-5 flex-shrink-0" />
-                      {!isCollapsed && <span>{link.label}</span>}
+                      {!collapsed && <span>{link.label}</span>}
                     </div>
-                    {!isCollapsed && (
+                    {!collapsed && (
                       <ChevronDown className={cn("h-4 w-4 transition-transform", submissionsOpen ? "rotate-180" : "")} />
                     )}
                   </button>
-                  {!isCollapsed && submissionsOpen && (
+                  {!collapsed && submissionsOpen && (
                     <div className="ml-4 mt-1 flex flex-col gap-1 border-l pl-4 border-border">
                       {/* @ts-ignore */}
                       {link.subLinks.map((sub) => (
@@ -173,13 +176,13 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center rounded-lg py-2 text-sm font-medium transition-colors mb-1",
                   "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  isCollapsed ? "justify-center px-0" : "gap-3 px-3"
+                  collapsed ? "justify-center px-0" : "gap-3 px-3"
                 )}
                 activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                title={isCollapsed ? link.label : undefined}
+                title={collapsed ? link.label : undefined}
               >
                 <link.icon className="h-5 w-5 flex-shrink-0" />
-                {!isCollapsed && <span>{link.label}</span>}
+                {!collapsed && <span>{link.label}</span>}
               </NavLink>
             );
           })}
@@ -187,11 +190,11 @@ export function Sidebar() {
 
         {/* User Section */}
         <div className="border-t border-border p-4">
-          <div className={cn("mb-3 flex items-center gap-3", isCollapsed && "justify-center")}>
+          <div className={cn("mb-3 flex items-center gap-3", collapsed && "justify-center")}>
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
               {user?.avatar}
             </div>
-            {!isCollapsed && (
+            {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
                 <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
@@ -202,12 +205,12 @@ export function Sidebar() {
             onClick={logout}
             className={cn(
               "flex w-full items-center rounded-lg py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-              isCollapsed ? "justify-center px-0" : "gap-2 px-3"
+              collapsed ? "justify-center px-0" : "gap-2 px-3"
             )}
-            title={isCollapsed ? "Logout" : undefined}
+            title={collapsed ? "Logout" : undefined}
           >
             <LogOut className="h-5 w-5 flex-shrink-0" />
-            {!isCollapsed && <span>Logout</span>}
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </div>

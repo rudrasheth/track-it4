@@ -241,7 +241,7 @@ export default function StudentDashboard() {
           <Card>
             <CardHeader className="pb-3 border-b border-border/50 mb-3"><CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="h-4 w-4 text-primary" /> Tasks Assigned</CardTitle></CardHeader>
             <CardContent className="space-y-0 p-0 pb-2">
-              <div className="max-h-[140px] overflow-y-auto px-6 space-y-4">
+              <div className="max-h-[250px] overflow-y-auto px-6 py-2 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
                 {tasks.length === 0 && <p className="text-sm text-muted-foreground py-2 text-center">No tasks assigned.</p>}
                 {tasks.map((task, index) => {
                   const isSubmitted = completedTaskIds.has(task.id);
