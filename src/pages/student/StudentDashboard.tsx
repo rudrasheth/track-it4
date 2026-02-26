@@ -227,46 +227,52 @@ export default function StudentDashboard() {
           </Card>
         )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <NoticeCarousel />
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Calendar className="h-4 w-4 text-primary" /> Upcoming Deadlines</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {upcomingTasks.length === 0 && <p className="text-sm text-muted-foreground">No upcoming tasks.</p>}
-              {upcomingTasks.map((task) => (
-                <div key={task.id} className="flex items-start justify-between"><div className="flex-1"><p className="text-sm font-medium">{task.title}</p><p className="text-xs text-muted-foreground">{format(new Date(task.due_date), "MMM dd")}</p></div></div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3 border-b border-border/50 mb-3"><CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="h-4 w-4 text-primary" /> Tasks Assigned</CardTitle></CardHeader>
-            <CardContent className="space-y-0 p-0 pb-2">
-              <div className="max-h-[250px] overflow-y-auto px-6 py-2 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
-                {tasks.length === 0 && <p className="text-sm text-muted-foreground py-2 text-center">No tasks assigned.</p>}
-                {tasks.map((task, index) => {
-                  const isSubmitted = completedTaskIds.has(task.id);
-                  return (
-                    <div key={task.id} className="flex items-center justify-between relative group">
-                      <div className="flex items-center gap-3 w-full pr-4">
-                        <span className="text-xs font-semibold text-muted-foreground w-4">{index + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{task.title}</p>
-                          <p className="text-[10px] text-muted-foreground">Due {format(new Date(task.due_date), "MMM dd")}</p>
+        <div className="grid gap-6 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="lg:col-span-2 xl:col-span-3 space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <NoticeCarousel />
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Calendar className="h-4 w-4 text-primary" /> Upcoming Deadlines</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  {upcomingTasks.length === 0 && <p className="text-sm text-muted-foreground">No upcoming tasks.</p>}
+                  {upcomingTasks.map((task) => (
+                    <div key={task.id} className="flex items-start justify-between"><div className="flex-1"><p className="text-sm font-medium">{task.title}</p><p className="text-xs text-muted-foreground">{format(new Date(task.due_date), "MMM dd")}</p></div></div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card><CardHeader><CardTitle>Your Project Progress</CardTitle></CardHeader><CardContent><div className="grid gap-6 md:grid-cols-2"><div className="h-64 flex justify-center"><Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} /></div><div className="h-64 flex justify-center"><Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} /></div></div></CardContent></Card>
+          </div>
+
+          <div className="lg:col-span-1">
+            <Card className="h-full flex flex-col">
+              <CardHeader className="pb-3 border-b border-border/50 mb-3"><CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="h-4 w-4 text-primary" /> Recent Activity</CardTitle></CardHeader>
+              <CardContent className="space-y-0 p-0 pb-2 flex-1 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-y-auto px-6 py-2 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent min-h-[400px]">
+                  {tasks.length === 0 && <p className="text-sm text-muted-foreground py-2 text-center">No recent activity.</p>}
+                  {tasks.map((task, index) => {
+                    const isSubmitted = completedTaskIds.has(task.id);
+                    return (
+                      <div key={task.id} className="flex items-center justify-between relative group">
+                        <div className="flex items-center gap-3 w-full pr-4">
+                          <span className="text-xs font-semibold text-muted-foreground w-4">{index + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{task.title}</p>
+                            <p className="text-[10px] text-muted-foreground">Due {format(new Date(task.due_date), "MMM dd")}</p>
+                          </div>
                         </div>
+                        <Badge variant={isSubmitted ? "default" : "outline"} className={isSubmitted ? "bg-green-500/10 text-green-600 hover:bg-green-500/20 shadow-none border-0" : "text-amber-600 border-amber-200 bg-amber-50 shadow-none"}>
+                          {isSubmitted ? "Submitted" : "Pending"}
+                        </Badge>
                       </div>
-                      <Badge variant={isSubmitted ? "default" : "outline"} className={isSubmitted ? "bg-green-500/10 text-green-600 hover:bg-green-500/20 shadow-none border-0" : "text-amber-600 border-amber-200 bg-amber-50 shadow-none"}>
-                        {isSubmitted ? "Submitted" : "Pending"}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-
-
-        <Card><CardHeader><CardTitle>Your Project Progress</CardTitle></CardHeader><CardContent><div className="grid gap-6 md:grid-cols-2"><div className="h-64 flex justify-center"><Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} /></div><div className="h-64 flex justify-center"><Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} /></div></div></CardContent></Card>
 
         <Tabs defaultValue="kanban" className="space-y-4">
           <TabsList>
