@@ -14,7 +14,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
       <div className={`transition-all duration-300 ${isCollapsed ? "ml-20" : "ml-64"}`}>
         <Topbar />
-        <main className="p-6">{children}</main>
+        <main className="p-6 max-w-[1400px] mx-auto w-full">{children}</main>
       </div>
     </div>
   );

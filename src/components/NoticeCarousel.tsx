@@ -24,7 +24,7 @@ export function NoticeCarousel() {
           .select('group_id')
           .eq('student_email', user.email)
           .maybeSingle();
-        
+
         const groupId = memberData?.group_id;
 
         // 2. Build Query: Get notices for this group OR for "all" (null)
@@ -42,7 +42,7 @@ export function NoticeCarousel() {
         }
 
         const { data, error } = await query;
-        
+
         if (error) throw error;
         setNotices(data || []);
 
@@ -62,7 +62,7 @@ export function NoticeCarousel() {
 
   // Badge Color Helper
   const getBadgeColor = (type: string) => {
-    switch(type) {
+    switch (type) {
       case 'urgent': return "bg-red-500 hover:bg-red-500";
       case 'important': return "bg-orange-500 hover:bg-orange-500";
       default: return "bg-blue-500 hover:bg-blue-500";
@@ -70,13 +70,13 @@ export function NoticeCarousel() {
   };
 
   if (loading) return (
-    <Card className="h-full flex items-center justify-center min-h-[200px]">
+    <Card className="h-full flex items-center justify-center min-h-[140px]">
       <p className="text-muted-foreground text-sm">Loading notices...</p>
     </Card>
   );
 
   if (notices.length === 0) return (
-    <Card className="h-full flex flex-col items-center justify-center min-h-[200px] text-center p-4">
+    <Card className="h-full flex flex-col items-center justify-center min-h-[140px] text-center p-4">
       <Bell className="h-8 w-8 text-muted-foreground mb-2 opacity-20" />
       <p className="text-muted-foreground text-sm">No notices at the moment.</p>
     </Card>
@@ -86,7 +86,7 @@ export function NoticeCarousel() {
 
   return (
     <Card className="h-full flex flex-col relative overflow-hidden group">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 pt-4">
         <CardTitle className="flex items-center gap-2 text-base">
           <Bell className="h-4 w-4 text-primary" />
           Notice Board
@@ -95,29 +95,29 @@ export function NoticeCarousel() {
           </Badge>
         </CardTitle>
       </CardHeader>
-      
-      <CardContent className="flex-1 flex flex-col justify-between">
+
+      <CardContent className="flex-1 flex flex-col justify-between pb-4">
         <div>
-          <h4 className="font-semibold text-lg line-clamp-1 mb-2">{currentNotice.title}</h4>
-          <p className="text-sm text-muted-foreground line-clamp-3 mb-4 min-h-[60px] whitespace-pre-wrap">
+          <h4 className="font-semibold text-md line-clamp-1 mb-1">{currentNotice.title}</h4>
+          <p className="text-xs text-muted-foreground line-clamp-3 mb-2 whitespace-pre-wrap">
             {currentNotice.content}
           </p>
         </div>
-        
+
         <div className="flex items-center justify-between mt-auto">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />
             {format(new Date(currentNotice.created_at), "MMM dd")}
           </div>
-          
+
           {notices.length > 1 && (
             <div className="flex gap-1">
-               <Button variant="outline" size="icon" className="h-6 w-6" onClick={prev}>
-                  <ChevronLeft className="h-3 w-3" />
-               </Button>
-               <Button variant="outline" size="icon" className="h-6 w-6" onClick={next}>
-                  <ChevronRight className="h-3 w-3" />
-               </Button>
+              <Button variant="outline" size="icon" className="h-6 w-6" onClick={prev}>
+                <ChevronLeft className="h-3 w-3" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-6 w-6" onClick={next}>
+                <ChevronRight className="h-3 w-3" />
+              </Button>
             </div>
           )}
         </div>
