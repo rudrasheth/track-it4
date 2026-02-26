@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 
 export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
@@ -46,6 +47,7 @@ export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?:
         { to: "/student/submissions/upcoming", label: "Upcoming" },
       ]
     },
+    { to: "/student/research", icon: BookOpen, label: "Research Papers" },
     { to: "/student/ai-assistant", icon: Sparkles, label: "AI Assistant" },
     { to: "/student/virtual-professor", icon: GraduationCap, label: "Virtual Professor" },
   ];
