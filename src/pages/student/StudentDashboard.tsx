@@ -13,6 +13,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend } from "chart.js";
+import { Doughnut, Bar } from "react-chartjs-2";
 import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +24,8 @@ import CalendarHeatmap from "react-calendar-heatmap";
 import "react-calendar-heatmap/dist/styles.css";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import "react-tooltip/dist/react-tooltip.css";
+
+ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend);
 
 interface Task { id: string; title: string; description: string; due_date: string; status: string; created_by: string; group_id: string; }
 interface Submission { id: string; task_id: string; student_id: string; file_name: string; file_url: string; submitted_at: string; grade?: number; }
@@ -242,6 +246,22 @@ export default function StudentDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Project Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="h-64 flex justify-center">
+                    <Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} />
+                  </div>
+                  <div className="h-64 flex justify-center">
+                    <Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="lg:col-span-1">
@@ -274,18 +294,18 @@ export default function StudentDashboard() {
         </div>
 
         {/* Heat Map Section above Kanban */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader className="pb-2 relative">
             <CardTitle>Activity Heatmap</CardTitle>
-            <p className="text-sm text-muted-foreground">Your recent submissions & task deadlines over the past year</p>
+            <p className="text-sm text-muted-foreground">Your recent submissions & task deadlines</p>
           </CardHeader>
           <CardContent className="overflow-x-auto pb-6">
-            <div className="min-w-[800px] mt-2">
+            <div className="min-w-[700px] mt-2">
               <CalendarHeatmap
                 startDate={new Date(new Date().setFullYear(new Date().getFullYear() - 1))}
                 endDate={new Date()}
                 values={
-                  // Generate heatmap data securely calculating task due/submission days
+                  // Generate heatmap using real tasks and submissions data
                   [...Array.from({ length: 365 }).map((_, i) => {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
@@ -295,16 +315,18 @@ export default function StudentDashboard() {
 
                     tasks.forEach(t => {
                       if (t.due_date && t.due_date.startsWith(matchStr)) dueCount++;
-                      // Also assume some completed randomly for green colors if we have completed IDs
                     });
 
-                    // Fake a few random green active contributions for demo look, or use real data
+                    submissions.forEach(s => {
+                      if (s.submitted_at && s.submitted_at.startsWith(matchStr)) count++;
+                    });
+
                     const isTaskDue = dueCount > 0;
-                    const defaultGreenActivity = Math.floor(Math.random() * 4);
 
                     return {
                       date: matchStr,
-                      count: isTaskDue ? 0 : defaultGreenActivity, // if 0 and !isTaskDue, will be base color
+                      count: isTaskDue ? 0 : count, // Zero out count if due, to use blue css
+                      actualCount: count, // Store real count for tooltip
                       isDue: isTaskDue,
                       dueCount: dueCount
                     };
@@ -313,14 +335,24 @@ export default function StudentDashboard() {
                 classForValue={(value) => {
                   if (!value) return 'color-empty';
                   if (value.isDue) return 'color-scale-blue'; // custom blue tag
-                  if (value.count > 0) return `color-scale-${value.count}`;
+                  if (value.count > 0) return `color-scale-${Math.min(value.count, 4)}`;
                   return 'color-empty';
                 }}
                 tooltipDataAttrs={(value: any) => {
                   if (!value || (!value.date)) return {};
+                  let tooltipContent = "";
+                  if (value.isDue) {
+                    tooltipContent = `${value.dueCount} task(s) due on ${value.date}`;
+                    if (value.actualCount > 0) tooltipContent += ` (${value.actualCount} submissions)`;
+                  } else if (value.actualCount > 0) {
+                    tooltipContent = `${value.actualCount} submissions on ${value.date}`;
+                  } else {
+                    tooltipContent = `No activity on ${value.date}`;
+                  }
+
                   return {
                     'data-tooltip-id': 'heatmap-tooltip',
-                    'data-tooltip-content': value.isDue ? `${value.dueCount} task(s) due on ${value.date}` : (value.count ? `${value.count} contributions on ${value.date}` : `No activity on ${value.date}`),
+                    'data-tooltip-content': tooltipContent,
                   };
                 }}
                 showWeekdayLabels={true}
@@ -403,6 +435,6 @@ export default function StudentDashboard() {
       <AlertDialog open={leaveGroupOpen} onOpenChange={setLeaveGroupOpen}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Leave Group?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveGroup}>Confirm</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
-    </DashboardLayout>
+    </DashboardLayout >
   );
 }
