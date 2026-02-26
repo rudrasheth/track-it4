@@ -205,10 +205,7 @@ export default function StudentDashboard() {
             </h1>
             <p className="text-muted-foreground flex items-center gap-2 mt-1">
               {myGroup ? (
-                <>
-                  <Badge variant="secondary" className="font-normal">{myGroup.semester}</Badge>
-                  {myGroup.description}
-                </>
+                <Badge variant="secondary" className="font-normal">{myGroup.semester}</Badge>
               ) : (
                 "Track your projects and deadlines"
               )}
@@ -268,7 +265,7 @@ export default function StudentDashboard() {
             <Card className="h-full flex flex-col">
               <CardHeader className="pb-3 border-b border-border/50 mb-3"><CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="h-4 w-4 text-primary" /> Recent Activity</CardTitle></CardHeader>
               <CardContent className="space-y-0 p-0 pb-2 flex-1 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-y-auto px-6 py-2 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent min-h-[500px]">
+                <div className="flex-1 overflow-y-auto px-6 py-2 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
                   {tasks.length === 0 && <p className="text-sm text-muted-foreground py-2 text-center">No recent activity.</p>}
                   {tasks.map((task, index) => {
                     const isSubmitted = completedTaskIds.has(task.id);

@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, BookOpen, ExternalLink, Loader2 } from "lucide-react";
+import { Search, BookOpen, ExternalLink, Loader2, Star } from "lucide-react";
 import { useState } from "react";
 
 // The API key user provided
@@ -34,6 +34,16 @@ export default function StudentResearch() {
     const [results, setResults] = useState(DEFAULT_PAPERS);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [starred, setStarred] = useState<Set<string>>(new Set());
+
+    const toggleStar = (link: string) => {
+        setStarred(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(link)) newSet.delete(link);
+            else newSet.add(link);
+            return newSet;
+        });
+    };
 
     const handleSearch = async (eContext?: React.FormEvent) => {
         if (eContext) eContext.preventDefault();
@@ -137,13 +147,26 @@ export default function StudentResearch() {
                                                 </p>
                                             )}
                                         </div>
-                                        {paper.link && (
-                                            <Button variant="outline" size="sm" className="hidden sm:flex shrink-0" asChild>
-                                                <a href={paper.link} target="_blank" rel="noopener noreferrer">
-                                                    <ExternalLink className="h-4 w-4 mr-2" /> Read
-                                                </a>
-                                            </Button>
-                                        )}
+                                        <div className="flex flex-col gap-2 shrink-0">
+                                            {paper.link && (
+                                                <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+                                                    <a href={paper.link} target="_blank" rel="noopener noreferrer">
+                                                        <ExternalLink className="h-4 w-4 mr-2" /> Read
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {paper.link && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="hidden sm:flex"
+                                                    onClick={(e) => { e.preventDefault(); toggleStar(paper.link); }}
+                                                >
+                                                    <Star className={`h-4 w-4 mr-2 ${starred.has(paper.link) ? "fill-yellow-400 text-yellow-500" : ""}`} />
+                                                    {starred.has(paper.link) ? "Starred" : "Star"}
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
