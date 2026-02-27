@@ -193,24 +193,12 @@ export default function StudentDashboard() {
 
   const progressData = {
     labels: ["Completed", "Pending"],
-    datasets: [{
-      data: [progressPercentage, 100 - progressPercentage],
-      backgroundColor: ["hsl(var(--primary))", "hsl(var(--secondary))"],
-      borderWidth: 0,
-      hoverOffset: 2
-    }]
+    datasets: [{ data: [progressPercentage, 100 - progressPercentage], backgroundColor: ["#10b981", "#f59e0b"], borderWidth: 0 }]
   };
 
   const taskStatusData = {
     labels: ["To Do", "Submitted"],
-    datasets: [{
-      label: "Tasks",
-      data: [pendingTasksCount, completedCount],
-      backgroundColor: ["hsl(var(--muted-foreground))", "hsl(var(--primary))"],
-      borderRadius: 4,
-      borderSkipped: false,
-      barThickness: 40
-    }]
+    datasets: [{ label: "Tasks", data: [pendingTasksCount, completedCount], backgroundColor: ["#f59e0b", "#10b981"] }]
   };
 
   if (loading) return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -269,61 +257,12 @@ export default function StudentDashboard() {
                 <CardTitle>Your Project Progress</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-8 md:grid-cols-2 lg:gap-12 items-center">
-                  <div className="h-48 md:h-64 flex flex-col justify-center items-center relative">
-                    <div className="h-full w-full max-w-[200px] md:max-w-[240px] relative">
-                      <Doughnut
-                        data={progressData}
-                        options={{
-                          responsive: true,
-                          maintainAspectRatio: false,
-                          cutout: "80%",
-                          color: "hsl(var(--foreground))",
-                          plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                              callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.raw}%` },
-                              padding: 10,
-                              cornerRadius: 8
-                            }
-                          }
-                        }}
-                      />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-4xl font-bold tracking-tight text-foreground">{progressPercentage}%</span>
-                        <span className="text-xs text-muted-foreground font-medium mt-1 uppercase tracking-wider">Completed</span>
-                      </div>
-                    </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="h-64 flex justify-center">
+                    <Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} />
                   </div>
-                  <div className="h-48 md:h-64 w-full px-2">
-                    <Bar
-                      data={taskStatusData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        color: "hsl(var(--foreground))",
-                        plugins: {
-                          legend: { display: false },
-                          tooltip: {
-                            padding: 10,
-                            cornerRadius: 8
-                          }
-                        },
-                        scales: {
-                          y: {
-                            beginAtZero: true,
-                            ticks: { precision: 0, color: "hsl(var(--muted-foreground))" },
-                            grid: { color: "hsl(var(--border) / 0.4)" },
-                            border: { display: false }
-                          },
-                          x: {
-                            ticks: { color: "hsl(var(--muted-foreground))" },
-                            grid: { display: false },
-                            border: { display: false }
-                          }
-                        }
-                      }}
-                    />
+                  <div className="h-64 flex justify-center">
+                    <Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} />
                   </div>
                 </div>
               </CardContent>
