@@ -264,8 +264,8 @@ export default function StudentDashboard() {
                 <p className="text-sm text-muted-foreground">Degree progress semester by semester</p>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-8 md:grid-cols-3 items-center">
-                  <div className="md:col-span-1 flex flex-col items-center justify-center py-2">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 sm:gap-12 w-full">
+                  <div className="flex-shrink-0 w-48 flex flex-col items-center justify-center py-2 mx-auto sm:mx-0">
                     <div className="relative w-40 h-40 flex items-center justify-center rounded-full bg-muted/20 border-8 border-muted">
                       <svg className="absolute top-0 left-0 w-full h-full transform -rotate-90">
                         <circle
@@ -296,7 +296,7 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="md:col-span-2 border-l border-border pl-8 space-y-6 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                  <div className="flex-1 min-w-0 w-full border-l border-border pl-8 space-y-6 max-h-[300px] overflow-y-auto pr-4 scrollbar-thin relative">
                     {semestersList.map((sem) => {
                       const isCompleted = sem.status === "completed";
                       const isCurrent = sem.status === "current";
