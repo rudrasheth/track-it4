@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import { useAuth } from "@/contexts/AuthContext";
 
 // The API key user provided
 const API_KEY = "b9179c833547d648ca882e6ddd0c81ce433d83e7b534aaf884f6ee609d7ec700";
@@ -60,6 +61,7 @@ const PAPER_TEMPLATE = `
 `;
 
 export default function StudentResearch() {
+    const { user } = useAuth();
     const [query, setQuery] = useState("");
     const [results, setResults] = useState(DEFAULT_PAPERS);
     const [loading, setLoading] = useState(false);
@@ -87,7 +89,8 @@ export default function StudentResearch() {
             title: editorTitle,
             content: editorContent,
             date: new Date().toISOString(),
-            status: "published"
+            status: "published",
+            author: user?.email || "Unknown Student"
         };
         const updated = [newPaper, ...publishedPapers];
         setPublishedPapers(updated);

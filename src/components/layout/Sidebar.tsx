@@ -58,6 +58,7 @@ export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?:
     { to: "/mentor/notices", icon: Bell, label: "Notices" },
     { to: "/mentor/tasks/assign", icon: Send, label: "Assign Task" },
     { to: "/mentor/analytics", icon: BarChart3, label: "Analytics" },
+    { to: "/mentor/research", icon: BookOpen, label: "Research Papers" }
 
   ];
 

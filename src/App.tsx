@@ -27,6 +27,7 @@ import MyGroups from "./pages/mentor/MyGroups";
 import Notices from "./pages/mentor/Notices";
 import AssignTask from "./pages/mentor/AssignTask";
 import Analytics from "./pages/mentor/Analytics";
+import ResearchPapers from "./pages/mentor/ResearchPapers";
 
 
 // Admin Pages
@@ -134,6 +135,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={["mentor"]}>
                     <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/mentor/research"
+                element={
+                  <ProtectedRoute allowedRoles={["mentor"]}>
+                    <ResearchPapers />
                   </ProtectedRoute>
                 }
               />
