@@ -3,9 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Search, BookOpen, ExternalLink, Loader2, Star, Save, Upload, FileText } from "lucide-react";
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Search, BookOpen, ExternalLink, Loader2, Star, Save, Upload, FileText, Plus, PenTool } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 // The API key user provided
 const API_KEY = "b9179c833547d648ca882e6ddd0c81ce433d83e7b534aaf884f6ee609d7ec700";
@@ -31,12 +34,82 @@ const DEFAULT_PAPERS = [
     }
 ];
 
+const PAPER_TEMPLATE = `
+  <h1>Research Paper Title</h1>
+  <br/>
+  <h2>Abstract</h2>
+  <p>Provide a brief summary of your research objectives, methodology, key results, and conclusion...</p>
+  <br/>
+  <h2>1. Introduction</h2>
+  <p>Detail the background and motivation for this work. What is the problem you are trying to solve?</p>
+  <br/>
+  <h2>2. Related Work</h2>
+  <p>Discuss similar research and existing literature...</p>
+  <br/>
+  <h2>3. Methodology</h2>
+  <p>Explain your approach, datasets, and the methods used...</p>
+  <br/>
+  <h2>4. Results & Discussion</h2>
+  <p>Present your findings conceptually and discuss their significance...</p>
+  <br/>
+  <h2>5. Conclusion</h2>
+  <p>Summarize the impact and future work directions...</p>
+  <br/>
+  <h2>References</h2>
+  <p>[1] Reference goes here...</p>
+`;
+
 export default function StudentResearch() {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState(DEFAULT_PAPERS);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [starred, setStarred] = useState<Map<string, any>>(new Map());
+
+    // Editor state
+    const [isEditing, setIsEditing] = useState(false);
+    const [editorTitle, setEditorTitle] = useState("");
+    const [editorContent, setEditorContent] = useState("");
+    const [publishedPapers, setPublishedPapers] = useState<any[]>([]);
+
+    useEffect(() => {
+        const saved = localStorage.getItem("student_research_papers");
+        if (saved) {
+            try { setPublishedPapers(JSON.parse(saved)); } catch (e) { }
+        }
+    }, []);
+
+    const savePaper = () => {
+        if (!editorTitle.trim()) { toast.error("Please enter a title for your paper"); return; }
+
+        const newPaper = {
+            id: Date.now().toString(),
+            title: editorTitle,
+            content: editorContent,
+            date: new Date().toISOString(),
+            status: "published"
+        };
+        const updated = [newPaper, ...publishedPapers];
+        setPublishedPapers(updated);
+        localStorage.setItem("student_research_papers", JSON.stringify(updated));
+
+        setIsEditing(false);
+        setEditorTitle("");
+        setEditorContent("");
+        toast.success("Research paper published to your mentor successfully!");
+    };
+
+    const handleStartTemplate = () => {
+        setEditorTitle("New Research Paper Draft");
+        setEditorContent(PAPER_TEMPLATE);
+        setIsEditing(true);
+    };
+
+    const handleStartBlank = () => {
+        setEditorTitle("");
+        setEditorContent("");
+        setIsEditing(true);
+    };
 
     const toggleStar = (paper: any) => {
         setStarred(prev => {
@@ -247,23 +320,103 @@ export default function StudentResearch() {
                     </TabsContent>
 
                     <TabsContent value="my-papers" className="space-y-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-semibold">Your Published & Draft Papers</h3>
-                            <Button>
-                                <Upload className="h-4 w-4 mr-2" />
-                                Upload Paper
-                            </Button>
-                        </div>
-                        <div className="text-center p-12 bg-muted/20 rounded-lg border border-dashed">
-                            <FileText className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-                            <h4 className="text-lg font-medium text-foreground mb-1">No Papers Uploaded</h4>
-                            <p className="text-muted-foreground max-w-sm mx-auto">
-                                You haven't uploaded any of your own research papers or drafts yet. Upload them here to track your academic portfolio.
-                            </p>
-                            <Button variant="outline" className="mt-4">
-                                Start Your First Draft
-                            </Button>
-                        </div>
+                        {isEditing ? (
+                            <div className="space-y-4 animate-in fade-in zoom-in duration-300">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-semibold">Research Paper Editor</h3>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                                        <Button onClick={savePaper}>
+                                            <Save className="h-4 w-4 mr-2" />
+                                            Publish to Mentor
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-4 bg-card rounded-lg border p-4 shadow-sm">
+                                    <div>
+                                        <label className="text-sm font-medium mb-1 block">Paper Title</label>
+                                        <Input
+                                            value={editorTitle}
+                                            onChange={e => setEditorTitle(e.target.value)}
+                                            placeholder="Enter your paper's title..."
+                                            className="text-lg font-semibold h-12"
+                                        />
+                                    </div>
+                                    <div className="bg-background rounded-md pb-12">
+                                        <ReactQuill
+                                            theme="snow"
+                                            value={editorContent}
+                                            onChange={setEditorContent}
+                                            className="h-[500px]"
+                                            placeholder="Write your research paper here..."
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 animate-in fade-in duration-300">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-semibold">Your Published & Draft Papers</h3>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" onClick={handleStartBlank} className="hidden sm:flex">
+                                            <PenTool className="h-4 w-4 mr-2" />
+                                            Blank Draft
+                                        </Button>
+                                        <Button onClick={handleStartTemplate}>
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Use Template
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {publishedPapers.length === 0 ? (
+                                    <div className="text-center p-12 bg-muted/20 rounded-lg border border-dashed flex flex-col items-center justify-center min-h-[400px]">
+                                        <div className="bg-background p-4 rounded-full shadow-sm mb-4">
+                                            <FileText className="h-12 w-12 text-primary/60" />
+                                        </div>
+                                        <h4 className="text-xl font-semibold text-foreground mb-2">No Papers Authored</h4>
+                                        <p className="text-muted-foreground max-w-md mx-auto mb-6">
+                                            You haven't authored any research papers or drafts yet. Use an industry-standard template to start drafting your first research piece for mentor review.
+                                        </p>
+                                        <div className="flex gap-3">
+                                            <Button variant="outline" onClick={handleStartBlank}>
+                                                Start Blank Draft
+                                            </Button>
+                                            <Button variant="default" onClick={handleStartTemplate}>
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Start from Template
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        {publishedPapers.map((paper, idx) => (
+                                            <Card key={paper.id || idx} className="group relative hover:border-primary/50 transition-colors shadow-sm">
+                                                <CardContent className="p-6 flex flex-col h-full">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <Badge variant="default" className="bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary mb-2 border-primary/20">Published</Badge>
+                                                    </div>
+                                                    <h4 className="font-bold text-lg mb-2 line-clamp-2">{paper.title}</h4>
+                                                    <p className="text-xs text-muted-foreground mb-6 flex-grow">
+                                                        Published on: {new Date(paper.date).toLocaleDateString()}
+                                                    </p>
+                                                    <div className="flex gap-2 mt-auto pt-4 border-t border-border/50">
+                                                        <Button variant="outline" size="sm" className="w-full" onClick={() => {
+                                                            setEditorTitle(paper.title);
+                                                            setEditorContent(paper.content);
+                                                            setIsEditing(true);
+                                                        }}>
+                                                            <PenTool className="h-3 w-3 mr-2" />
+                                                            View / Edit
+                                                        </Button>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </TabsContent>
                 </Tabs>
             </div>
