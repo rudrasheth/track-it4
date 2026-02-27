@@ -282,14 +282,14 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="md:col-span-2 border-l border-border pl-6 space-y-6 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
+                  <div className="md:col-span-2 border-l border-border pl-8 space-y-6 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
                     {tasks.length === 0 && <p className="text-muted-foreground text-center mt-10">No tasks to track yet.</p>}
                     {tasks.map((task, i) => {
                       const isSubmitted = completedTaskIds.has(task.id);
                       return (
                         <div key={task.id} className="relative">
                           <div className={cn(
-                            "absolute -left-[30px] top-1 h-3 w-3 rounded-full border-2 bg-background",
+                            "absolute -left-[37px] top-1 h-3 w-3 rounded-full border-2 bg-background",
                             isSubmitted ? "border-primary" : "border-amber-500"
                           )} />
                           <div>

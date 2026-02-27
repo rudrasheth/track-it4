@@ -68,7 +68,11 @@ export function GeminiChatbot({ groupName = "Group" }: GeminiChatbotProps) {
           body: JSON.stringify({
             model: "llama3-8b-8192",
             messages: [
-              ...messages.map((m) => ({
+              {
+                role: "system",
+                content: "You are a helpful AI assistant for a student platform.",
+              },
+              ...messages.filter(m => m.id !== "1").map((m) => ({
                 role: m.sender === "user" ? "user" : "assistant",
                 content: m.content,
               })),

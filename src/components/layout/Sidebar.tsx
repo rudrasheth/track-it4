@@ -24,7 +24,6 @@ import {
   ChevronRight,
   ChevronDown,
   BookOpen,
-  Star,
 } from "lucide-react";
 
 export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
@@ -35,12 +34,6 @@ export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?:
   const collapsed = isCollapsed !== undefined && setIsCollapsed ? isCollapsed : localIsCollapsed;
   const setCollapsed = setIsCollapsed || setLocalIsCollapsed;
   const [submissionsOpen, setSubmissionsOpen] = useState(false);
-  const [starredOpen, setStarredOpen] = useState(true);
-
-  const starredLinks = [
-    { to: "/student/research", icon: Star, label: "Research Papers" },
-    { to: "/student/ai-assistant", icon: Star, label: "AI Assistant" },
-  ];
 
   const studentLinks = [
     { to: "/student/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -99,33 +92,6 @@ export function Sidebar({ isCollapsed = false, setIsCollapsed }: { isCollapsed?:
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-
-          {/* Starred Section */}
-          <div className="mb-6">
-            {!collapsed && (
-              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center justify-between">
-                <span>Starred</span>
-              </p>
-            )}
-            <div className="space-y-1">
-              {starredLinks.map((link) => (
-                <NavLink
-                  key={link.to + "-starred"}
-                  to={link.to}
-                  className={cn(
-                    "flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
-                    "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                    collapsed ? "justify-center px-0" : "gap-3 px-3"
-                  )}
-                  activeClassName="bg-primary/10 text-primary"
-                  title={collapsed ? link.label : undefined}
-                >
-                  <link.icon className="h-4 w-4 fill-yellow-400 text-yellow-400 flex-shrink-0" />
-                  {!collapsed && <span>{link.label}</span>}
-                </NavLink>
-              ))}
-            </div>
-          </div>
 
           {!collapsed && (
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 mt-4">
