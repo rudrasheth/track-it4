@@ -2,8 +2,9 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, BookOpen, ExternalLink, Loader2, Star } from "lucide-react";
+import { Search, BookOpen, ExternalLink, Loader2, Star, Save } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 // The API key user provided
 const API_KEY = "b9179c833547d648ca882e6ddd0c81ce433d83e7b534aaf884f6ee609d7ec700";
@@ -42,6 +43,14 @@ export default function StudentResearch() {
             if (newSet.has(link)) newSet.delete(link);
             else newSet.add(link);
             return newSet;
+        });
+    };
+
+    const handleSaveDraft = (paperTitle: string) => {
+        // Mock save draft functionality for mentor review
+        toast.success(`"${paperTitle}" saved as draft for mentor review!`, {
+            description: "Your mentor will be able to review this research paper draft.",
+            icon: <Save className="h-4 w-4 text-green-500" />
         });
     };
 
@@ -166,6 +175,14 @@ export default function StudentResearch() {
                                                     {starred.has(paper.link) ? "Starred" : "Star"}
                                                 </Button>
                                             )}
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="hidden sm:flex bg-primary/10 text-primary hover:bg-primary/20"
+                                                onClick={(e) => { e.preventDefault(); handleSaveDraft(paper.title); }}
+                                            >
+                                                <Save className="h-4 w-4 mr-2" /> Save Draft for Mentor
+                                            </Button>
                                         </div>
                                     </div>
                                 </CardContent>

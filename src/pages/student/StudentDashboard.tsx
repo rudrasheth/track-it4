@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend } from "chart.js";
-import { Doughnut, Bar } from "react-chartjs-2";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -246,15 +246,64 @@ export default function StudentDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Your Project Progress</CardTitle>
+                <CardTitle>Project Activity Timeline</CardTitle>
+                <p className="text-sm text-muted-foreground">Recent events and progress</p>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="h-64 flex justify-center">
-                    <Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} />
+                <div className="grid gap-8 md:grid-cols-3">
+                  <div className="md:col-span-1 flex flex-col items-center justify-center py-6">
+                    <div className="relative w-40 h-40 flex items-center justify-center rounded-full bg-muted/20 border-8 border-muted">
+                      <svg className="absolute top-0 left-0 w-full h-full transform -rotate-90">
+                        <circle
+                          cx="80"
+                          cy="80"
+                          r="72"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          className="text-primary"
+                          strokeDasharray={`${progressPercentage * 4.5} 450`}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="text-center">
+                        <span className="text-3xl font-bold">{progressPercentage}%</span>
+                        <p className="text-xs text-muted-foreground mt-1">Completed</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-center gap-4 mt-6 w-full text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-primary" />
+                        <span>{completedCount} Done</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-amber-500" />
+                        <span>{pendingTasksCount} Pending</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="h-64 flex justify-center">
-                    <Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} />
+                  <div className="md:col-span-2 border-l border-border pl-6 space-y-6 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
+                    {tasks.length === 0 && <p className="text-muted-foreground text-center mt-10">No tasks to track yet.</p>}
+                    {tasks.map((task, i) => {
+                      const isSubmitted = completedTaskIds.has(task.id);
+                      return (
+                        <div key={task.id} className="relative">
+                          <div className={cn(
+                            "absolute -left-[30px] top-1 h-3 w-3 rounded-full border-2 bg-background",
+                            isSubmitted ? "border-primary" : "border-amber-500"
+                          )} />
+                          <div>
+                            <p className="text-sm font-medium">{task.title}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className={isSubmitted ? "text-primary border-primary/50" : "text-amber-600 border-amber-600/50"}>
+                                {isSubmitted ? "Submitted" : "To Do"}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">Due {format(new Date(task.due_date), "MMM dd")}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </CardContent>
@@ -270,11 +319,15 @@ export default function StudentDashboard() {
                   {tasks.map((task, index) => {
                     const isSubmitted = completedTaskIds.has(task.id);
                     return (
-                      <div key={task.id} className="flex items-center justify-between relative group">
+                      <div
+                        key={task.id}
+                        className="flex items-center justify-between relative group cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 p-2 rounded-md transition-colors"
+                        onClick={() => navigate('/student/submissions')}
+                      >
                         <div className="flex items-center gap-3 w-full pr-4">
                           <span className="text-xs font-semibold text-muted-foreground w-4">{index + 1}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{task.title}</p>
+                            <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{task.title}</p>
                             <p className="text-[10px] text-muted-foreground">Due {format(new Date(task.due_date), "MMM dd")}</p>
                           </div>
                         </div>
