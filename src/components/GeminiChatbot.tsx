@@ -31,7 +31,7 @@ export function GeminiChatbot({ groupName = "Group" }: GeminiChatbotProps) {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -57,38 +57,17 @@ export function GeminiChatbot({ groupName = "Group" }: GeminiChatbotProps) {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: [
-              ...messages.map((m) => ({
-                role: m.sender === "user" ? "user" : "assistant",
-                content: m.content,
-              })),
-              {
-                role: "user",
-                content: userMessage,
-              },
-            ],
-            temperature: 0.7,
-            max_tokens: 1024,
-          }),
-        }
-      );
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      if (!response.ok) {
-        throw new Error("Failed to get response from AI");
-      }
+      const historyText = messages
+        .map((m) => `${m.sender === "user" ? "User" : "AI"}: ${m.content}`)
+        .join("\n");
+      const prompt = `${historyText}\nUser: ${userMessage}\nAI:`;
 
-      const data = await response.json();
-      const botResponse = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+      const result = await model.generateContent(prompt);
+      const botResponse = result.response.text() || "Sorry, I couldn't generate a response.";
 
       const newBotMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -144,17 +123,15 @@ export function GeminiChatbot({ groupName = "Group" }: GeminiChatbotProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div
-                  className={`max-w-[70%] rounded-lg p-3 text-sm ${
-                    isBot
+                  className={`max-w-[70%] rounded-lg p-3 text-sm ${isBot
                       ? "bg-white border shadow-sm"
                       : "bg-primary text-primary-foreground"
-                  }`}
+                    }`}
                 >
                   <p>{msg.content}</p>
                   <p
-                    className={`text-[10px] mt-1 text-right ${
-                      isBot ? "text-muted-foreground" : "opacity-70"
-                    }`}
+                    className={`text-[10px] mt-1 text-right ${isBot ? "text-muted-foreground" : "opacity-70"
+                      }`}
                   >
                     {format(msg.timestamp, "HH:mm")}
                   </p>
