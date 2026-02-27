@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, RadialLinearScale, PointElement, LineElement, Tooltip, Legend } from "chart.js";
+import { Doughnut, Bar } from "react-chartjs-2";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -190,22 +191,15 @@ export default function StudentDashboard() {
   const pendingTasksCount = tasks.length - completedCount;
   const progressPercentage = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
 
-  const currentSemNum = parseInt(myGroup?.semester?.replace(/[^0-9]/g, '') || "1");
-  const semestersList = Array.from({ length: 8 }).map((_, i) => {
-    const semNum = i + 1;
-    let status = "upcoming";
-    if (semNum < currentSemNum) status = "completed";
-    else if (semNum === currentSemNum) status = "current";
-    return {
-      id: semNum,
-      name: `Semester ${semNum}`,
-      status,
-      date: `Year ${Math.ceil(semNum / 2)}`
-    };
-  });
-  const completedSemsCount = semestersList.filter(s => s.status === "completed").length;
-  const inProgressSemsCount = semestersList.filter(s => s.status === "current").length;
-  const semProgressPercentage = Math.round((completedSemsCount / 8) * 100);
+  const progressData = {
+    labels: ["Completed", "Pending"],
+    datasets: [{ data: [progressPercentage, 100 - progressPercentage], backgroundColor: ["#10b981", "#f59e0b"], borderWidth: 0 }]
+  };
+
+  const taskStatusData = {
+    labels: ["To Do", "Submitted"],
+    datasets: [{ label: "Tasks", data: [pendingTasksCount, completedCount], backgroundColor: ["#f59e0b", "#10b981"] }]
+  };
 
   if (loading) return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -260,69 +254,15 @@ export default function StudentDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Academic Timeline</CardTitle>
-                <p className="text-sm text-muted-foreground">Degree progress semester by semester</p>
+                <CardTitle>Your Project Progress</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 sm:gap-12 w-full">
-                  <div className="flex-shrink-0 w-48 flex flex-col items-center justify-center py-2 mx-auto sm:mx-0">
-                    <div className="relative w-40 h-40 flex items-center justify-center rounded-full bg-muted/20 border-8 border-muted">
-                      <svg className="absolute top-0 left-0 w-full h-full transform -rotate-90">
-                        <circle
-                          cx="80"
-                          cy="80"
-                          r="72"
-                          stroke="currentColor"
-                          strokeWidth="8"
-                          fill="transparent"
-                          className="text-primary"
-                          strokeDasharray={`${semProgressPercentage * 4.5} 450`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="text-center">
-                        <span className="text-3xl font-bold">{semProgressPercentage}%</span>
-                        <p className="text-xs text-muted-foreground mt-1">Completed</p>
-                      </div>
-                    </div>
-                    <div className="flex justify-center gap-4 mt-6 w-full text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-primary" />
-                        <span>{completedSemsCount} Done</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-amber-500" />
-                        <span>{inProgressSemsCount} Curr</span>
-                      </div>
-                    </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="h-64 flex justify-center">
+                    <Doughnut data={progressData} options={{ responsive: true, maintainAspectRatio: false }} />
                   </div>
-                  <div className="flex-1 min-w-0 w-full max-h-[300px] overflow-y-auto pr-4 scrollbar-thin">
-                    <div className="border-l border-border pl-8 space-y-6 ml-3 py-1">
-                      {semestersList.map((sem) => {
-                        const isCompleted = sem.status === "completed";
-                        const isCurrent = sem.status === "current";
-                        return (
-                          <div key={sem.id} className="relative">
-                            <div className={cn(
-                              "absolute -left-[38px] top-1.5 h-3 w-3 rounded-full border-2 bg-background",
-                              isCompleted ? "border-primary bg-primary" : (isCurrent ? "border-amber-500" : "border-muted-foreground")
-                            )} />
-                            <div>
-                              <p className={cn("text-sm font-medium", !isCompleted && !isCurrent && "text-muted-foreground")}>{sem.name}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className={
-                                  isCompleted ? "bg-primary/10 text-primary border-primary/20" :
-                                    (isCurrent ? "text-amber-600 border-amber-600/50 bg-amber-50" : "text-muted-foreground border-border bg-muted/20")
-                                }>
-                                  {isCompleted ? "Completed" : (isCurrent ? "In Progress" : "Upcoming")}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">{sem.date}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div className="h-64 flex justify-center">
+                    <Bar data={taskStatusData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} />
                   </div>
                 </div>
               </CardContent>
