@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Search, BookOpen, ExternalLink, Loader2, Star, Save } from "lucide-react";
 import { useState } from "react";
@@ -35,22 +36,14 @@ export default function StudentResearch() {
     const [results, setResults] = useState(DEFAULT_PAPERS);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [starred, setStarred] = useState<Set<string>>(new Set());
+    const [starred, setStarred] = useState<Map<string, any>>(new Map());
 
-    const toggleStar = (link: string) => {
+    const toggleStar = (paper: any) => {
         setStarred(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(link)) newSet.delete(link);
-            else newSet.add(link);
-            return newSet;
-        });
-    };
-
-    const handleSaveDraft = (paperTitle: string) => {
-        // Mock save draft functionality for mentor review
-        toast.success(`"${paperTitle}" saved as draft for mentor review!`, {
-            description: "Your mentor will be able to review this research paper draft.",
-            icon: <Save className="h-4 w-4 text-green-500" />
+            const newMap = new Map(prev);
+            if (newMap.has(paper.link)) newMap.delete(paper.link);
+            else newMap.set(paper.link, paper);
+            return newMap;
         });
     };
 
@@ -117,79 +110,141 @@ export default function StudentResearch() {
                     </CardContent>
                 </Card>
 
-                <div className="space-y-4">
-                    <h3 className="text-xl font-semibold mt-8 mb-4">
-                        {results === DEFAULT_PAPERS ? "Recommended Reading" : "Search Results"}
-                    </h3>
+                <Tabs defaultValue="search" className="space-y-6 mt-8">
+                    <TabsList>
+                        <TabsTrigger value="search">Search Papers</TabsTrigger>
+                        <TabsTrigger value="starred" className="relative">
+                            Starred Library
+                            {starred.size > 0 && (
+                                <span className="ml-2 inline-flex items-center justify-center bg-primary text-primary-foreground text-[10px] w-5 h-5 rounded-full">
+                                    {starred.size}
+                                </span>
+                            )}
+                        </TabsTrigger>
+                    </TabsList>
 
-                    {error && <div className="text-destructive font-medium p-4 bg-destructive/10 rounded-md">{error}</div>}
+                    <TabsContent value="search" className="space-y-4">
+                        <h3 className="text-xl font-semibold mb-4">
+                            {results === DEFAULT_PAPERS ? "Recommended Reading" : "Search Results"}
+                        </h3>
 
-                    {!loading && results.length === 0 && !error && (
-                        <div className="text-center p-8 bg-muted/20 rounded-lg border border-dashed">
-                            <p className="text-muted-foreground">No papers found for "{query}". Try different keywords.</p>
-                        </div>
-                    )}
+                        {error && <div className="text-destructive font-medium p-4 bg-destructive/10 rounded-md">{error}</div>}
 
-                    {loading ? (
-                        <div className="flex justify-center p-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        </div>
-                    ) : (
-                        results.map((paper: any, idx: number) => (
-                            <Card key={idx} className="overflow-hidden hover:border-primary/50 transition-colors">
-                                <CardContent className="p-6">
-                                    <div className="flex justify-between items-start gap-4">
-                                        <div className="space-y-2">
-                                            <h4 className="text-lg font-bold leading-tight">
-                                                <a href={paper.link} target="_blank" rel="noopener noreferrer" className="hover:underline text-foreground">
-                                                    {paper.title}
-                                                </a>
-                                            </h4>
-                                            {paper.publication_info?.summary && (
-                                                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
-                                                    {paper.publication_info.summary}
-                                                </p>
-                                            )}
-                                            {paper.snippet && (
-                                                <p className="text-sm text-muted-foreground line-clamp-3">
-                                                    {paper.snippet}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col gap-2 shrink-0">
-                                            {paper.link && (
-                                                <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
-                                                    <a href={paper.link} target="_blank" rel="noopener noreferrer">
-                                                        <ExternalLink className="h-4 w-4 mr-2" /> Read
+                        {!loading && results.length === 0 && !error && (
+                            <div className="text-center p-8 bg-muted/20 rounded-lg border border-dashed">
+                                <p className="text-muted-foreground">No papers found for "{query}". Try different keywords.</p>
+                            </div>
+                        )}
+
+                        {loading ? (
+                            <div className="flex justify-center p-12">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            results.map((paper: any, idx: number) => (
+                                <Card key={idx} className="overflow-hidden hover:border-primary/50 transition-colors">
+                                    <CardContent className="p-6">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="space-y-2">
+                                                <h4 className="text-lg font-bold leading-tight">
+                                                    <a href={paper.link} target="_blank" rel="noopener noreferrer" className="hover:underline text-foreground">
+                                                        {paper.title}
                                                     </a>
-                                                </Button>
-                                            )}
-                                            {paper.link && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="hidden sm:flex"
-                                                    onClick={(e) => { e.preventDefault(); toggleStar(paper.link); }}
-                                                >
-                                                    <Star className={`h-4 w-4 mr-2 ${starred.has(paper.link) ? "fill-yellow-400 text-yellow-500" : ""}`} />
-                                                    {starred.has(paper.link) ? "Starred" : "Star"}
-                                                </Button>
-                                            )}
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="hidden sm:flex bg-primary/10 text-primary hover:bg-primary/20"
-                                                onClick={(e) => { e.preventDefault(); handleSaveDraft(paper.title); }}
-                                            >
-                                                <Save className="h-4 w-4 mr-2" /> Save Draft for Mentor
-                                            </Button>
+                                                </h4>
+                                                {paper.publication_info?.summary && (
+                                                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
+                                                        {paper.publication_info.summary}
+                                                    </p>
+                                                )}
+                                                {paper.snippet && (
+                                                    <p className="text-sm text-muted-foreground line-clamp-3">
+                                                        {paper.snippet}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2 shrink-0">
+                                                {paper.link && (
+                                                    <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+                                                        <a href={paper.link} target="_blank" rel="noopener noreferrer">
+                                                            <ExternalLink className="h-4 w-4 mr-2" /> Read
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                                {paper.link && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="hidden sm:flex"
+                                                        onClick={(e) => { e.preventDefault(); toggleStar(paper); }}
+                                                    >
+                                                        <Star className={`h-4 w-4 mr-2 ${starred.has(paper.link) ? "fill-yellow-400 text-yellow-500" : ""}`} />
+                                                        {starred.has(paper.link) ? "Starred" : "Star"}
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))
-                    )}
-                </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="starred" className="space-y-4">
+                        <h3 className="text-xl font-semibold mb-4">Your Starred Papers</h3>
+                        {starred.size === 0 ? (
+                            <div className="text-center p-8 bg-muted/20 rounded-lg border border-dashed">
+                                <Star className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                                <p className="text-muted-foreground">You haven't starred any papers yet.</p>
+                            </div>
+                        ) : (
+                            Array.from(starred.values()).map((paper: any, idx: number) => (
+                                <Card key={idx} className="overflow-hidden hover:border-primary/50 transition-colors">
+                                    <CardContent className="p-6">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="space-y-2">
+                                                <h4 className="text-lg font-bold leading-tight">
+                                                    <a href={paper.link} target="_blank" rel="noopener noreferrer" className="hover:underline text-foreground">
+                                                        {paper.title}
+                                                    </a>
+                                                </h4>
+                                                {paper.publication_info?.summary && (
+                                                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
+                                                        {paper.publication_info.summary}
+                                                    </p>
+                                                )}
+                                                {paper.snippet && (
+                                                    <p className="text-sm text-muted-foreground line-clamp-3">
+                                                        {paper.snippet}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2 shrink-0">
+                                                {paper.link && (
+                                                    <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+                                                        <a href={paper.link} target="_blank" rel="noopener noreferrer">
+                                                            <ExternalLink className="h-4 w-4 mr-2" /> Read
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                                {paper.link && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="hidden sm:flex"
+                                                        onClick={(e) => { e.preventDefault(); toggleStar(paper); }}
+                                                    >
+                                                        <Star className={`h-4 w-4 mr-2 ${starred.has(paper.link) ? "fill-yellow-400 text-yellow-500" : ""}`} />
+                                                        {starred.has(paper.link) ? "Starred" : "Star"}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )}
+                    </TabsContent>
+                </Tabs>
             </div>
         </DashboardLayout>
     );
