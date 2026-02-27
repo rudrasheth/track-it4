@@ -296,31 +296,33 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0 w-full border-l border-border pl-8 space-y-6 max-h-[300px] overflow-y-auto pr-4 scrollbar-thin relative">
-                    {semestersList.map((sem) => {
-                      const isCompleted = sem.status === "completed";
-                      const isCurrent = sem.status === "current";
-                      return (
-                        <div key={sem.id} className="relative">
-                          <div className={cn(
-                            "absolute -left-[38px] top-1.5 h-3 w-3 rounded-full border-2 bg-background",
-                            isCompleted ? "border-primary bg-primary" : (isCurrent ? "border-amber-500" : "border-muted-foreground")
-                          )} />
-                          <div>
-                            <p className={cn("text-sm font-medium", !isCompleted && !isCurrent && "text-muted-foreground")}>{sem.name}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className={
-                                isCompleted ? "bg-primary/10 text-primary border-primary/20" :
-                                  (isCurrent ? "text-amber-600 border-amber-600/50 bg-amber-50" : "text-muted-foreground border-border bg-muted/20")
-                              }>
-                                {isCompleted ? "Completed" : (isCurrent ? "In Progress" : "Upcoming")}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">{sem.date}</span>
+                  <div className="flex-1 min-w-0 w-full max-h-[300px] overflow-y-auto pr-4 scrollbar-thin">
+                    <div className="border-l border-border pl-8 space-y-6 ml-3 py-1">
+                      {semestersList.map((sem) => {
+                        const isCompleted = sem.status === "completed";
+                        const isCurrent = sem.status === "current";
+                        return (
+                          <div key={sem.id} className="relative">
+                            <div className={cn(
+                              "absolute -left-[38px] top-1.5 h-3 w-3 rounded-full border-2 bg-background",
+                              isCompleted ? "border-primary bg-primary" : (isCurrent ? "border-amber-500" : "border-muted-foreground")
+                            )} />
+                            <div>
+                              <p className={cn("text-sm font-medium", !isCompleted && !isCurrent && "text-muted-foreground")}>{sem.name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className={
+                                  isCompleted ? "bg-primary/10 text-primary border-primary/20" :
+                                    (isCurrent ? "text-amber-600 border-amber-600/50 bg-amber-50" : "text-muted-foreground border-border bg-muted/20")
+                                }>
+                                  {isCompleted ? "Completed" : (isCurrent ? "In Progress" : "Upcoming")}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{sem.date}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </CardContent>

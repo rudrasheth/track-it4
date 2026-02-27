@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Search, BookOpen, ExternalLink, Loader2, Star, Save } from "lucide-react";
+import { Search, BookOpen, ExternalLink, Loader2, Star, Save, Upload, FileText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -121,6 +121,7 @@ export default function StudentResearch() {
                                 </span>
                             )}
                         </TabsTrigger>
+                        <TabsTrigger value="my-papers">My Research Papers</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="search" className="space-y-4">
@@ -243,6 +244,26 @@ export default function StudentResearch() {
                                 </Card>
                             ))
                         )}
+                    </TabsContent>
+
+                    <TabsContent value="my-papers" className="space-y-4">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold">Your Published & Draft Papers</h3>
+                            <Button>
+                                <Upload className="h-4 w-4 mr-2" />
+                                Upload Paper
+                            </Button>
+                        </div>
+                        <div className="text-center p-12 bg-muted/20 rounded-lg border border-dashed">
+                            <FileText className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                            <h4 className="text-lg font-medium text-foreground mb-1">No Papers Uploaded</h4>
+                            <p className="text-muted-foreground max-w-sm mx-auto">
+                                You haven't uploaded any of your own research papers or drafts yet. Upload them here to track your academic portfolio.
+                            </p>
+                            <Button variant="outline" className="mt-4">
+                                Start Your First Draft
+                            </Button>
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>
