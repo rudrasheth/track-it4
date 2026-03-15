@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Trash2, Save, Loader2, Plus, CheckSquare, Tag } from "lucide-react";
+import { User, Trash2, Save, Loader2, Plus, CheckSquare, Tag, Upload } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +53,10 @@ export function JiraTaskModal({ task, open, onOpenChange, onUpdate }: JiraTaskMo
   const [formData, setFormData] = useState<Partial<Task>>({});
   const [newSubtask, setNewSubtask] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  
+  // Submission State
+  const [submission, setSubmission] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -67,8 +71,61 @@ export function JiraTaskModal({ task, open, onOpenChange, onUpdate }: JiraTaskMo
         subtasks: task.subtasks || []
       });
       fetchComments();
+      fetchSubmission();
     }
-  }, [task]);
+  }, [task, open]);
+
+  const fetchSubmission = async () => {
+    if (!task || !user) return;
+    const { data } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('task_id', task.id)
+      .eq('student_id', user.id)
+      .maybeSingle();
+    setSubmission(data);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !task || !user) return;
+    const file = e.target.files[0];
+    setUploading(true);
+    try {
+      const filePath = `${task.id}/${user.id}/${Date.now()}-${file.name}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('assignments')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('assignments').getPublicUrl(filePath);
+
+      // Upsert submission
+      const { data: newSub, error: subError } = await supabase
+        .from('submissions')
+        .upsert({ 
+          task_id: task.id, 
+          student_id: user.id, 
+          file_name: file.name, 
+          file_url: publicUrl,
+          submitted_at: new Date().toISOString()
+        }, { onConflict: 'task_id,student_id' })
+        .select()
+        .single();
+
+      if (subError) throw subError;
+
+      setSubmission(newSub);
+      toast.success("Assignment submitted!");
+      onUpdate(); // Refresh the board stats
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Upload failed: " + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const fetchComments = async () => {
     if (!task) return;
@@ -208,6 +265,66 @@ export function JiraTaskModal({ task, open, onOpenChange, onUpdate }: JiraTaskMo
                             <Button size="sm" variant="outline" onClick={addSubtask}><Plus className="h-3 w-3" /></Button>
                         </div>
                     </div>
+                </div>
+
+                {/* Submission Section */}
+                <div className="space-y-4 pt-4 border-t">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-bold text-muted-foreground uppercase flex items-center gap-2">
+                            <Upload className="h-4 w-4" /> Submission
+                        </h3>
+                        {submission && (
+                            <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
+                                Submitted
+                            </Badge>
+                        )}
+                    </div>
+
+                    {submission ? (
+                        <div className="flex items-center justify-between p-4 bg-muted/5 rounded-lg border border-border group/sub">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-background rounded border group-hover/sub:border-primary transition-colors">
+                                    <Tag className="h-5 w-5 text-primary" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-foreground truncate max-w-[300px]">{submission.file_name}</span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                        Submitted {format(new Date(submission.submitted_at), "MMM d, yyyy HH:mm")}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button size="sm" variant="ghost" asChild>
+                                    <a href={submission.file_url} target="_blank" rel="noopener noreferrer">View</a>
+                                </Button>
+                                <div className="relative">
+                                    <Input type="file" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={handleFileUpload} disabled={uploading} />
+                                    <Button size="sm" variant="outline" disabled={uploading}>
+                                        {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resubmit"}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center p-8 border-2 border-dashed rounded-lg bg-muted/5 hover:bg-muted/10 transition-colors border-border">
+                            <label className="flex flex-col items-center gap-2 cursor-pointer w-full text-center">
+                                <div className="p-3 rounded-full bg-primary/10">
+                                    <Upload className="h-6 w-6 text-primary" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium">Click to upload your work</p>
+                                    <p className="text-xs text-muted-foreground mt-1">PDF, ZIP, or Document</p>
+                                </div>
+                                <Input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                                <div className="mt-2">
+                                    <Button size="sm" type="button" disabled={uploading} className="pointer-events-none">
+                                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        Upload File
+                                    </Button>
+                                </div>
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 {/* Comments Tab */}

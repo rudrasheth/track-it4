@@ -1,0 +1,5 @@
+﻿9da5c54 HEAD@{0}: reset: moving to HEAD~1
+cf7d830 HEAD@{1}: commit: Switched chatbot logic back to Groq using user API key
+9da5c54 HEAD@{2}: commit: Fix API error by switching to Gemini SDK
+52cc5dd HEAD@{3}: commit: UI tweak: remove option desc, shorten kanban, align recent activity, star papers
+11b8347 HEAD@{4}: commit: Fix layout and move project progress correctly

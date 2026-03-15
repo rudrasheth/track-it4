@@ -89,7 +89,7 @@ export function SidebarGeminiBot() {
       }
 
       const data = await response.json();
-      const botResponse = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+      const botResponse = data.choices?.[0]?``````````````````.message?.content || "Sorry, I couldn't generate a response.";
 
       const newBotMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),

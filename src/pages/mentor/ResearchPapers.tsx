@@ -1,10 +1,14 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, BookOpen, Loader2 } from "lucide-react";
+import { BookOpen, Loader2, MessageSquare, Pencil, Save } from "lucide-react";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import DOMPurify from "dompurify";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 export default function ResearchPapers() {
     const [loading, setLoading] = useState(true);
@@ -21,6 +25,35 @@ export default function ResearchPapers() {
         }
         setLoading(false);
     }, []);
+
+    const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+    const [selectedPaper, setSelectedPaper] = useState<any>(null);
+    const [feedbackInput, setFeedbackInput] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const openFeedbackModal = (paper: any) => {
+        setSelectedPaper(paper);
+        setFeedbackInput(paper.feedback || "");
+        setIsFeedbackOpen(true);
+    };
+
+    const handleSaveFeedback = () => {
+        if (!selectedPaper) return;
+        setSaving(true);
+        try {
+            const updatedPapers = papers.map(p =>
+                p.id === selectedPaper.id ? { ...p, feedback: feedbackInput } : p
+            );
+            setPapers(updatedPapers);
+            localStorage.setItem("student_research_papers", JSON.stringify(updatedPapers));
+            toast.success("Feedback saved successfully!");
+            setIsFeedbackOpen(false);
+        } catch (error) {
+            toast.error("Failed to save feedback");
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -64,17 +97,61 @@ export default function ResearchPapers() {
                                         Published
                                     </Badge>
                                 </CardHeader>
-                                <CardContent>
                                     <div
                                         className="prose prose-sm dark:prose-invert max-w-none pt-4 border-t border-border/50"
                                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(paper.content) }}
                                     />
                                 </CardContent>
+                                <CardFooter className="bg-muted/20 border-t border-border/50 flex flex-col items-start gap-4 p-4">
+                                    <div className="w-full">
+                                        <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                                            <MessageSquare className="h-4 w-4" /> Mentor Feedback
+                                        </h5>
+                                        {paper.feedback ? (
+                                            <p className="text-sm text-muted-foreground bg-background p-3 rounded-md border text-left">
+                                                {paper.feedback}
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground italic mb-2">No feedback provided yet.</p>
+                                        )}
+                                    </div>
+                                    <Button variant="outline" size="sm" onClick={() => openFeedbackModal(paper)}>
+                                        <Pencil className="h-4 w-4 mr-2" />
+                                        {paper.feedback ? "Edit Feedback" : "Add Feedback"}
+                                    </Button>
+                                </CardFooter>
                             </Card>
-                        ))}
-                    </div>
-                )}
+                ))}
             </div>
-        </DashboardLayout>
+                )}
+
+            {/* Feedback Modal */}
+            <Dialog open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Provide Feedback</DialogTitle>
+                        <DialogDescription>
+                            Add constructive feedback for the research paper: <b>{selectedPaper?.title}</b>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Textarea
+                            placeholder="This is a great start. Consider adding more citations in the related work section..."
+                            value={feedbackInput}
+                            onChange={(e) => setFeedbackInput(e.target.value)}
+                            className="min-h-[150px]"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsFeedbackOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveFeedback} disabled={saving}>
+                            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Save Feedback
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+        </DashboardLayout >
     );
 }

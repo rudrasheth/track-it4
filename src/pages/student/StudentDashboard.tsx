@@ -135,22 +135,7 @@ export default function StudentDashboard() {
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
 
-  const handleFileUpload = async (taskId: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) return;
-    const file = event.target.files[0];
-    setUploadingTaskId(taskId);
-    try {
-      if (!user) throw new Error("User not found");
-      const filePath = `${taskId}/${user.id}/${Date.now()}-${file.name}`;
-      await supabase.storage.from('assignments').upload(filePath, file);
-      const { data: { publicUrl } } = supabase.storage.from('assignments').getPublicUrl(filePath);
-      const { data: newSub } = await supabase.from('submissions').insert({ task_id: taskId, student_id: user.id, file_name: file.name, file_url: publicUrl }).select().single();
-      if (newSub) {
-        setSubmissions(prev => [...prev.filter(s => s.task_id !== taskId), newSub]);
-        toast.success("Assignment submitted!");
-      }
-    } catch (error: any) { toast.error("Upload failed"); } finally { setUploadingTaskId(null); }
-  };
+
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !user || !myGroup?.id) {
